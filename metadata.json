@@ -1,0 +1,6 @@
+{
+  "name": "Finanzas Inteligentes",
+  "description": "Control de ingresos, gastos, presupuestos, metas de ahorro, recordatorios de pagos y asistente financiero con IA.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
