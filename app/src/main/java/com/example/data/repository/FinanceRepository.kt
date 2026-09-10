@@ -41,6 +41,7 @@ class FinanceRepository(private val db: AppDatabase) {
 
     // --- Authentication & Users ---
     suspend fun getUserByEmail(email: String): UserEntity? = userDao.getUserByEmail(email.trim().lowercase(Locale.ROOT))
+    suspend fun getUserByPhone(phone: String): UserEntity? = userDao.getUserByPhone(phone.trim())
     suspend fun getUserById(id: Long): UserEntity? = userDao.getUserById(id)
     fun getAllUsers(): Flow<List<UserEntity>> = userDao.getAllUsers()
     suspend fun registerUser(user: UserEntity): Long = userDao.insertUser(user.copy(email = user.email.trim().lowercase(Locale.ROOT)))

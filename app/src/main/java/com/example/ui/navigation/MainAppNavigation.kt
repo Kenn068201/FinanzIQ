@@ -365,8 +365,21 @@ fun AuthenticatedAppScaffold(
                 categories = categories.map { it.name }.distinct(),
                 onAutoClassify = { title, type -> viewModel.autoSuggestCategory(title, type) },
                 onDismiss = { showQuickAddDialog = false },
-                onConfirm = { title, amount, type, category, date, note ->
-                    viewModel.addTransaction(title, amount, type, category, date, note)
+                onConfirmMovement = { title, amount, type, incomeSubType, frequency, payoutDate, destination, categoryGroup, category, subCategory, date, note ->
+                    viewModel.addMovement(
+                        title = title,
+                        amount = amount,
+                        type = type,
+                        incomeSubType = incomeSubType,
+                        frequency = frequency,
+                        payoutDate = payoutDate,
+                        destination = destination,
+                        categoryGroup = categoryGroup,
+                        category = category,
+                        subCategory = subCategory,
+                        dateMillis = date,
+                        note = note
+                    )
                     showQuickAddDialog = false
                 }
             )

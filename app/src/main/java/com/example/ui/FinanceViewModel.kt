@@ -10,10 +10,18 @@ import com.example.data.local.CategoryEntity
 import com.example.data.local.SavingsGoalEntity
 import com.example.data.local.TransactionEntity
 import com.example.data.local.UserEntity
+import com.example.data.model.CategoryDataHierarchy
 import com.example.data.repository.CategoryExpenseBreakdown
 import com.example.data.repository.FinanceRepository
 import com.example.data.repository.FinancialSummary
+import com.example.util.AppLanguage
+import com.example.util.CountryPhoneConfig
+import com.example.util.CountryPhoneData
+import com.example.util.CurrencyOption
+import com.example.util.Localization
 import com.example.util.Validators
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,6 +41,13 @@ data class UiAlert(
     val isError: Boolean = true
 )
 
+data class NestedCategorySpending(
+    val categoryName: String,
+    val iconEmoji: String,
+    val totalSpent: Double,
+    val subcategoryBreakdown: Map<String, Double>
+)
+
 class FinanceViewModel(application: Application) : AndroidViewModel(application) {
     private val repository: FinanceRepository
     val database: AppDatabase
@@ -41,6 +56,48 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         database = AppDatabase.getDatabase(application, viewModelScope)
         repository = FinanceRepository(database)
         observeCategories()
+    }
+
+    // --- UI Theme & Localization ---
+    private val _isDarkMode = MutableStateFlow(false)
+    val isDarkMode: StateFlow<Boolean> = _isDarkMode.asStateFlow()
+
+    fun toggleDarkMode() {
+        _isDarkMode.value = !_isDarkMode.value
+    }
+
+    fun setDarkMode(enabled: Boolean) {
+        _isDarkMode.value = enabled
+    }
+
+    private val _currentLanguage = MutableStateFlow(AppLanguage.SPANISH)
+    val currentLanguage: StateFlow<AppLanguage> = _currentLanguage.asStateFlow()
+
+    fun setLanguage(lang: AppLanguage) {
+        _currentLanguage.value = lang
+    }
+
+    private val _selectedCurrency = MutableStateFlow(CountryPhoneData.americanCurrencies.first())
+    val selectedCurrency: StateFlow<CurrencyOption> = _selectedCurrency.asStateFlow()
+
+    fun setCurrency(currency: CurrencyOption) {
+        _selectedCurrency.value = currency
+    }
+
+    // --- Login Rate Limiting & Lockout ---
+    private var lockoutJob: Job? = null
+    private val _failedLoginAttempts = MutableStateFlow(0)
+    val failedLoginAttempts: StateFlow<Int> = _failedLoginAttempts.asStateFlow()
+
+    private val _lockoutRemainingSeconds = MutableStateFlow(0)
+    val lockoutRemainingSeconds: StateFlow<Int> = _lockoutRemainingSeconds.asStateFlow()
+
+    // --- Global "Deseos" Budget Limit (Single monthly budget for variable spending) ---
+    private val _deseosBudgetLimit = MutableStateFlow(8000.0)
+    val deseosBudgetLimit: StateFlow<Double> = _deseosBudgetLimit.asStateFlow()
+
+    fun setDeseosBudgetLimit(limit: Double) {
+        _deseosBudgetLimit.value = limit
     }
 
     // --- Current Auth State ---
@@ -187,19 +244,43 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }
 
     // --- Auth Methods ---
-    fun login(identifier: String, password: String):Boolean {
+    fun login(identifier: String, password: String, onResult: ((Boolean) -> Unit)? = null): Boolean {
+        // 1. Check if user is currently locked out
+        if (_lockoutRemainingSeconds.value > 0) {
+            val minutes = _lockoutRemainingSeconds.value / 60
+            val seconds = _lockoutRemainingSeconds.value % 60
+            val timeFormatted = String.format("%02d:%02d", minutes, seconds)
+            _authError.value = if (_currentLanguage.value == AppLanguage.SPANISH) {
+                "Has ingresado credenciales incorrectas 3 veces. Debes esperar 5 minutos para volver a intentar (Tiempo restante: $timeFormatted)."
+            } else {
+                "You have entered incorrect credentials 3 times. Please wait 5 minutes before trying again (Remaining time: $timeFormatted)."
+            }
+            onResult?.invoke(false)
+            return false
+        }
+
         _authError.value = null
         val id = identifier.trim()
         val pwd = password.trim()
 
         if (id.isBlank() || pwd.isBlank()) {
-            _authError.value = "Por favor, complete todos los campos."
+            _authError.value = if (_currentLanguage.value == AppLanguage.SPANISH) {
+                "Por favor, complete todos los campos."
+            } else {
+                "Please fill in all fields."
+            }
+            onResult?.invoke(false)
             return false
         }
 
         // Validate email format if identifier contains @
         if (id.contains("@") && !Validators.isValidEmail(id)) {
-            _authError.value = "El correo electrónico debe tener el formato 'usuario@dominio.com'."
+            _authError.value = if (_currentLanguage.value == AppLanguage.SPANISH) {
+                "El correo electrónico debe tener el formato 'usuario@dominio.com'."
+            } else {
+                "Email must follow the format 'user@domain.com'."
+            }
+            onResult?.invoke(false)
             return false
         }
 
@@ -207,6 +288,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         val (isPwdValid, pwdErr) = Validators.isValidPassword(pwd)
         if (!isPwdValid) {
             _authError.value = pwdErr
+            onResult?.invoke(false)
             return false
         }
 
@@ -215,13 +297,59 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             val user = repository.getUserByEmail(id)
             if (user != null && user.passwordHash == pwd) {
                 _currentUser.value = user
+                _failedLoginAttempts.value = 0
+                _lockoutRemainingSeconds.value = 0
+                lockoutJob?.cancel()
+                CountryPhoneData.americanCurrencies.find { it.code in user.preferredCurrency }?.let {
+                    _selectedCurrency.value = it
+                }
                 observeUserData(user.id)
                 loggedIn = true
+                onResult?.invoke(true)
             } else {
-                _authError.value = "Credenciales incorrectas. Verifique su correo y contraseña."
+                _failedLoginAttempts.value += 1
+                if (_failedLoginAttempts.value >= 3) {
+                    startLockoutTimer()
+                } else {
+                    _authError.value = if (_currentLanguage.value == AppLanguage.SPANISH) {
+                        "Credenciales incorrectas. Verifique su correo y contraseña. (Intento ${_failedLoginAttempts.value} de 3)"
+                    } else {
+                        "Incorrect credentials. Please verify your email and password. (Attempt ${_failedLoginAttempts.value} of 3)"
+                    }
+                }
+                onResult?.invoke(false)
             }
         }
         return loggedIn
+    }
+
+    private fun startLockoutTimer() {
+        _failedLoginAttempts.value = 0
+        _lockoutRemainingSeconds.value = 300 // 5 minutes
+        val msg = if (_currentLanguage.value == AppLanguage.SPANISH) {
+            "Has ingresado credenciales incorrectas 3 veces seguidas. Por seguridad, debes esperar 5 minutos para volver a intentar (Tiempo restante: 05:00)."
+        } else {
+            "You have entered incorrect credentials 3 times. For security, please wait 5 minutes before trying again (Remaining time: 05:00)."
+        }
+        _authError.value = msg
+        lockoutJob?.cancel()
+        lockoutJob = viewModelScope.launch {
+            while (_lockoutRemainingSeconds.value > 0) {
+                delay(1000L)
+                _lockoutRemainingSeconds.value -= 1
+                if (_lockoutRemainingSeconds.value > 0) {
+                    val m = _lockoutRemainingSeconds.value / 60
+                    val s = _lockoutRemainingSeconds.value % 60
+                    val timeFormatted = String.format("%02d:%02d", m, s)
+                    _authError.value = if (_currentLanguage.value == AppLanguage.SPANISH) {
+                        "Has ingresado credenciales incorrectas 3 veces seguidas. Por seguridad, debes esperar 5 minutos para volver a intentar (Tiempo restante: $timeFormatted)."
+                    } else {
+                        "You have entered incorrect credentials 3 times. For security, please wait 5 minutes before trying again (Remaining time: $timeFormatted)."
+                    }
+                }
+            }
+            _authError.value = null
+        }
     }
 
     fun register(
@@ -229,23 +357,43 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         lastNames: String,
         ageStr: String,
         phone: String,
+        countryConfig: CountryPhoneConfig = CountryPhoneData.americanCountries.first(),
         email: String,
         password: String,
         confirmPassword: String,
+        preferredCurrency: CurrencyOption = CountryPhoneData.americanCurrencies.first(),
         role: String = "USER",
         onSuccess: () -> Unit
     ) {
         _authError.value = null
 
-        // 1. First names validation
-        if (!Validators.isValidName(firstNames)) {
-            _authError.value = "Los nombres deben empezar con mayúscula seguida de minúsculas (ej: Carlos Alberto)."
+        // 1. First names validation with 70-character max limit
+        if (firstNames.length > 70) {
+            _authError.value = if (_currentLanguage.value == AppLanguage.SPANISH) {
+                "Has alcanzado el límite máximo de 70 caracteres para los nombres."
+            } else {
+                "You have reached the maximum limit of 70 characters for first names."
+            }
+            return
+        }
+        val (isFirstValid, firstErr) = Validators.validateName(firstNames, isLastName = false)
+        if (!isFirstValid) {
+            _authError.value = firstErr
             return
         }
 
-        // 2. Last names validation
-        if (!Validators.isValidName(lastNames)) {
-            _authError.value = "Los apellidos deben empezar con mayúscula seguida de minúsculas (ej: Mendoza López)."
+        // 2. Last names validation with 70-character max limit
+        if (lastNames.length > 70) {
+            _authError.value = if (_currentLanguage.value == AppLanguage.SPANISH) {
+                "Has alcanzado el límite máximo de 70 caracteres para los apellidos."
+            } else {
+                "You have reached the maximum limit of 70 characters for last names."
+            }
+            return
+        }
+        val (isLastValid, lastErr) = Validators.validateName(lastNames, isLastName = true)
+        if (!isLastValid) {
+            _authError.value = lastErr
             return
         }
 
@@ -256,9 +404,10 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             return
         }
 
-        // 4. Phone validation (starts with 5, 7, 8 and 8 digits)
-        if (!Validators.isValidPhone(phone)) {
-            _authError.value = "El teléfono debe empezar por 5, 7 u 8 y tener exactamente 8 dígitos."
+        // 4. Phone validation according to selected country specification
+        val (isPhoneValid, phoneErr) = CountryPhoneData.validatePhone(countryConfig, phone)
+        if (!isPhoneValid) {
+            _authError.value = phoneErr
             return
         }
 
@@ -282,9 +431,18 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         }
 
         viewModelScope.launch {
-            val existing = repository.getUserByEmail(email)
-            if (existing != null) {
-                _authError.value = "Ya existe un usuario registrado con este correo electrónico."
+            // Check email uniqueness in DB
+            val existingEmail = repository.getUserByEmail(email)
+            if (existingEmail != null) {
+                _authError.value = "El correo electrónico ingresado ya está registrado en la base de datos."
+                return@launch
+            }
+
+            // Check phone uniqueness in DB (without revealing other user's name)
+            val cleanDigits = phone.filter { it.isDigit() }
+            val existingPhone = repository.getUserByPhone(cleanDigits) ?: repository.getUserByPhone("${countryConfig.dialPrefix}$cleanDigits")
+            if (existingPhone != null) {
+                _authError.value = "El número de teléfono ya ha sido registrado por otro usuario."
                 return@launch
             }
 
@@ -292,18 +450,133 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                 firstName = firstNames.trim(),
                 lastName = lastNames.trim(),
                 age = ageStr.toInt(),
-                phone = phone.trim(),
+                phone = cleanDigits,
+                phonePrefix = countryConfig.dialPrefix,
                 email = email.trim().lowercase(),
                 passwordHash = password.trim(),
-                role = role
+                role = role,
+                preferredCurrency = "${preferredCurrency.symbol} ${preferredCurrency.code}"
             )
 
             val newId = repository.registerUser(newUser)
             val created = repository.getUserById(newId)
             _currentUser.value = created
+            _selectedCurrency.value = preferredCurrency
             created?.let { observeUserData(it.id) }
             onSuccess()
         }
+    }
+
+    // --- Incomes and Expenses Advanced Movement ---
+    fun addMovement(
+        title: String,
+        amount: Double,
+        type: String, // "INCOME" or "EXPENSE"
+        incomeSubType: String = "ACTIVE", // "ACTIVE" or "PASSIVE"
+        frequency: String = "",
+        payoutDate: String = "",
+        destination: String = "",
+        categoryGroup: String,
+        category: String,
+        subCategory: String = "",
+        dateMillis: Long = System.currentTimeMillis(),
+        note: String = ""
+    ) {
+        val userId = _currentUser.value?.id ?: 1L
+        viewModelScope.launch {
+            repository.addTransaction(
+                TransactionEntity(
+                    userId = userId,
+                    title = title.trim(),
+                    amount = amount,
+                    type = type,
+                    incomeSubType = incomeSubType,
+                    frequency = frequency,
+                    payoutDate = payoutDate,
+                    destination = destination,
+                    categoryGroup = categoryGroup,
+                    category = category,
+                    subCategory = subCategory,
+                    dateMillis = dateMillis,
+                    note = note.trim()
+                )
+            )
+        }
+    }
+
+    // --- Fixed & Variable Budget Calculations ---
+    fun getAutoCalculatedFixedExpensesPreviousMonth(): Double {
+        val txs = _allTransactions.value
+        val now = Calendar.getInstance()
+        now.add(Calendar.MONTH, -1)
+        val prevMonth = now.get(Calendar.MONTH)
+        val prevYear = now.get(Calendar.YEAR)
+
+        val fixedCatNames = CategoryDataHierarchy.fixedExpenseGroup.categories.map { it.nameEs.lowercase() }
+        val calculated = txs.filter { tx ->
+            if (tx.type != "EXPENSE") return@filter false
+            val txCal = Calendar.getInstance().apply { timeInMillis = tx.dateMillis }
+            val isPrevMonth = txCal.get(Calendar.MONTH) == prevMonth && txCal.get(Calendar.YEAR) == prevYear
+            val isFixed = tx.categoryGroup == "GASTOS_FIJOS" || fixedCatNames.any { tx.category.lowercase().contains(it) }
+            isPrevMonth && isFixed
+        }.sumOf { it.amount }
+
+        return if (calculated <= 0.0) 6500.0 else calculated
+    }
+
+    fun getVariableExpensesSpentThisMonth(): Double {
+        val txs = _allTransactions.value
+        val now = Calendar.getInstance()
+        val currentMonth = now.get(Calendar.MONTH)
+        val currentYear = now.get(Calendar.YEAR)
+
+        val variableCatNames = CategoryDataHierarchy.variableExpenseGroup.categories.map { it.nameEs.lowercase() }
+        return txs.filter { tx ->
+            if (tx.type != "EXPENSE") return@filter false
+            val txCal = Calendar.getInstance().apply { timeInMillis = tx.dateMillis }
+            val isThisMonth = txCal.get(Calendar.MONTH) == currentMonth && txCal.get(Calendar.YEAR) == currentYear
+            val isVariable = tx.categoryGroup == "GASTOS_VARIABLES" || variableCatNames.any { tx.category.lowercase().contains(it) }
+            isThisMonth && isVariable
+        }.sumOf { it.amount }
+    }
+
+    fun getRemainingDeseosFund(): Double {
+        val spent = getVariableExpensesSpentThisMonth()
+        return (_deseosBudgetLimit.value - spent).coerceAtLeast(0.0)
+    }
+
+    fun getNestedVariableSpending(): List<NestedCategorySpending> {
+        val txs = _allTransactions.value
+        val now = Calendar.getInstance()
+        val currentMonth = now.get(Calendar.MONTH)
+        val currentYear = now.get(Calendar.YEAR)
+
+        val thisMonthExpenses = txs.filter { tx ->
+            val txCal = Calendar.getInstance().apply { timeInMillis = tx.dateMillis }
+            tx.type == "EXPENSE" && txCal.get(Calendar.MONTH) == currentMonth && txCal.get(Calendar.YEAR) == currentYear
+        }
+
+        return CategoryDataHierarchy.variableExpenseGroup.categories.map { cat ->
+            val matchingTxs = thisMonthExpenses.filter { tx ->
+                tx.category.equals(cat.nameEs, ignoreCase = true) || tx.category.equals(cat.nameEn, ignoreCase = true)
+            }
+            val total = matchingTxs.sumOf { it.amount }
+            val subMap = mutableMapOf<String, Double>()
+            cat.subcategories.forEach { sub ->
+                val subTotal = matchingTxs.filter { tx ->
+                    tx.subCategory.equals(sub.nameEs, ignoreCase = true) || tx.subCategory.equals(sub.nameEn, ignoreCase = true)
+                }.sumOf { it.amount }
+                if (subTotal > 0.0) {
+                    subMap[sub.nameEs] = subTotal
+                }
+            }
+            NestedCategorySpending(
+                categoryName = cat.nameEs,
+                iconEmoji = cat.iconEmoji,
+                totalSpent = total,
+                subcategoryBreakdown = subMap
+            )
+        }.filter { it.totalSpent > 0.0 }
     }
 
     fun requestPasswordReset(email: String, onResult: (Boolean, String) -> Unit) {
@@ -344,7 +617,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         dateMillis: Long,
         note: String
     ) {
-        val user = _currentUser.value ?: return
+        val userId = _currentUser.value?.id ?: 1L
         viewModelScope.launch {
             val actualCategory = if (category.isBlank() || category == "Auto") {
                 repository.autoClassifyCategory(title, type)
@@ -352,7 +625,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
             repository.addTransaction(
                 TransactionEntity(
-                    userId = user.id,
+                    userId = userId,
                     title = title.trim(),
                     amount = amount,
                     type = type,

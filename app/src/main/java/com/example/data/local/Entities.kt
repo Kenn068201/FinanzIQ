@@ -11,9 +11,11 @@ data class UserEntity(
     val lastName: String,
     val age: Int,
     val phone: String,
+    val phonePrefix: String = "+505",
     val email: String,
     val passwordHash: String,
     val role: String = "USER", // "USER" or "ADMIN"
+    val preferredCurrency: String = "C$ NIO",
     val createdAt: Long = System.currentTimeMillis()
 )
 
@@ -26,6 +28,12 @@ data class TransactionEntity(
     val amount: Double,
     val type: String, // "INCOME" or "EXPENSE"
     val category: String,
+    val subCategory: String = "",
+    val categoryGroup: String = "", // "GASTOS_FIJOS", "GASTOS_VARIABLES", "PAGO_DEUDAS", "INGRESO_ACTIVO", "INGRESO_PASIVO"
+    val incomeSubType: String = "", // "ACTIVE" or "PASSIVE"
+    val frequency: String = "", // "MENSUAL", "TRIMESTRAL", "SEMESTRAL", "ANUAL", "ESPORADICO"
+    val payoutDate: String = "",
+    val destination: String = "", // wallet, bank, broker
     val dateMillis: Long,
     val note: String = "",
     val isRecurring: Boolean = false

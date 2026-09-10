@@ -92,14 +92,19 @@ fun ErrorWarningBox(
     }
 }
 
-// Formatted Currency C$ String
-fun formatCordobas(amount: Double): String {
+// Formatted Currency String
+fun formatCurrency(amount: Double, currency: com.example.util.CurrencyOption? = null): String {
     val symbols = DecimalFormatSymbols(Locale.US).apply {
         groupingSeparator = ','
         decimalSeparator = '.'
     }
     val formatter = DecimalFormat("#,##0.00", symbols)
-    return "C$ ${formatter.format(amount)}"
+    val sym = currency?.symbol ?: "C$"
+    return "$sym ${formatter.format(amount)}"
+}
+
+fun formatCordobas(amount: Double): String {
+    return formatCurrency(amount, null)
 }
 
 // Sleek Metric Stat Card

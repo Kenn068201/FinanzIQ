@@ -20,11 +20,30 @@ object Validators {
     }
 
     fun isValidName(name: String): Boolean {
-        return name.isNotBlank() && NAME_REGEX.matcher(name.trim()).matches()
+        if (name.isBlank() || name.length > 70) return false
+        return NAME_REGEX.matcher(name.trim()).matches()
+    }
+
+    fun validateName(name: String, isLastName: Boolean): Pair<Boolean, String?> {
+        val fieldName = if (isLastName) "apellidos" else "nombres"
+        if (name.isBlank()) {
+            return false to "Por favor ingresa los $fieldName."
+        }
+        if (name.length > 70) {
+            return false to "Has alcanzado el límite máximo de 70 caracteres para los $fieldName."
+        }
+        if (!NAME_REGEX.matcher(name.trim()).matches()) {
+            return false to "Cada nombre o apellido debe iniciar con letra Mayúscula (ej. Carlos Alberto)."
+        }
+        return true to null
     }
 
     fun isValidPhone(phone: String): Boolean {
         return phone.isNotBlank() && PHONE_REGEX.matcher(phone.trim()).matches()
+    }
+
+    fun validatePhoneWithCountry(country: CountryPhoneConfig, phone: String): Pair<Boolean, String?> {
+        return CountryPhoneData.validatePhone(country, phone)
     }
 
     fun isValidPassword(password: String): Pair<Boolean, String?> {

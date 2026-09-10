@@ -31,6 +31,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -58,9 +59,13 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.data.local.BudgetEntity
+import com.example.data.model.CategoryDataHierarchy
+import com.example.data.model.CategoryGroupType
 import com.example.ui.FinanceViewModel
 import com.example.ui.components.ErrorWarningBox
+import com.example.ui.components.SectionHeader
 import com.example.ui.components.formatCordobas
 import com.example.ui.theme.FinanceBackground
 import com.example.ui.theme.FinanceError
@@ -79,7 +84,6 @@ fun BudgetsScreen(
 ) {
     val budgets by viewModel.budgets.collectAsState()
     val transactions by viewModel.allTransactions.collectAsState()
-    val categories by viewModel.categories.collectAsState()
 
     var showAddDialog by remember { mutableStateOf(false) }
 
@@ -89,6 +93,11 @@ fun BudgetsScreen(
         .groupBy { it.category }
         .mapValues { entry -> entry.value.sumOf { it.amount } }
 
+    val totalBudgetLimit = budgets.sumOf { it.monthlyLimit }
+    val totalSpent = expensesByCategory.values.sum()
+    val totalProgress = if (totalBudgetLimit > 0) (totalSpent / totalBudgetLimit).toFloat().coerceIn(0f, 1.2f) else 0f
+    val totalPercentage = if (totalBudgetLimit > 0) (totalSpent / totalBudgetLimit) * 100 else 0.0
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -97,7 +106,7 @@ fun BudgetsScreen(
                         text = "Presupuestos Mensuales",
                         style = MaterialTheme.typography.titleLarge.copy(
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF111827)
+                            color = Color(0xFF0F172A)
                         )
                     )
                 },
@@ -122,8 +131,9 @@ fun BudgetsScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
                 .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Description Banner
             item {
                 Card(
                     shape = RoundedCornerShape(18.dp),
@@ -154,6 +164,117 @@ fun BudgetsScreen(
                         )
                     }
                 }
+            }
+
+            // Prominent Single/Global Budget Horizontal Bar Chart
+            if (budgets.isNotEmpty()) {
+                item {
+                    val isGlobalExceeded = totalSpent >= totalBudgetLimit
+                    val isGlobalWarning = !isGlobalExceeded && totalPercentage >= 80
+                    val globalColor = when {
+                        isGlobalExceeded -> FinanceError
+                        isGlobalWarning -> FinanceWarning
+                        else -> FinanceSuccess
+                    }
+
+                    Card(
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(18.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        text = "Presupuesto General del Mes",
+                                        style = MaterialTheme.typography.titleMedium.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF0F172A)
+                                        )
+                                    )
+                                    Text(
+                                        text = "${budgets.size} categorías presupuestadas",
+                                        style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF64748B))
+                                    )
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = globalColor.copy(alpha = 0.12f)
+                                ) {
+                                    Text(
+                                        text = when {
+                                            isGlobalExceeded -> "⚠️ Superado"
+                                            isGlobalWarning -> "⚡ Alerta 80%"
+                                            else -> "✅ Saludable"
+                                        },
+                                        style = MaterialTheme.typography.labelMedium.copy(
+                                            color = globalColor,
+                                            fontWeight = FontWeight.Bold
+                                        ),
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            // Horizontal Bar Chart
+                            LinearProgressIndicator(
+                                progress = { totalProgress.coerceAtMost(1f) },
+                                color = globalColor,
+                                trackColor = Color(0xFFE2E8F0),
+                                strokeCap = StrokeCap.Round,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(12.dp)
+                            )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column {
+                                    Text(
+                                        text = "Total Gastado",
+                                        style = MaterialTheme.typography.labelSmall.copy(color = Color(0xFF64748B))
+                                    )
+                                    Text(
+                                        text = formatCordobas(totalSpent),
+                                        style = MaterialTheme.typography.titleMedium.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            color = globalColor
+                                        )
+                                    )
+                                }
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text(
+                                        text = "Límite Global",
+                                        style = MaterialTheme.typography.labelSmall.copy(color = Color(0xFF64748B))
+                                    )
+                                    Text(
+                                        text = formatCordobas(totalBudgetLimit),
+                                        style = MaterialTheme.typography.titleMedium.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF0F172A)
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            item {
+                SectionHeader(title = "Presupuestos por Categoría")
             }
 
             if (budgets.isEmpty()) {
@@ -198,7 +319,6 @@ fun BudgetsScreen(
 
         if (showAddDialog) {
             AddBudgetDialog(
-                availableCategories = categories.filter { it.type == "EXPENSE" }.map { it.name }.distinct(),
                 onDismiss = { showAddDialog = false },
                 onConfirm = { cat, limit ->
                     viewModel.setBudget(cat, limit)
@@ -227,6 +347,12 @@ fun BudgetProgressCard(
         else -> FinanceSuccess
     }
 
+    // Lookup emoji
+    val allExpenseCategories = CategoryDataHierarchy.fixedExpenseGroup.categories +
+        CategoryDataHierarchy.variableExpenseGroup.categories +
+        CategoryDataHierarchy.debtPaymentGroup.categories
+    val catEmoji = allExpenseCategories.firstOrNull { it.nameEs == budget.category }?.iconEmoji ?: "📊"
+
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -249,16 +375,7 @@ fun BudgetProgressCard(
                             .background(progressColor.copy(alpha = 0.15f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = when {
-                                isExceeded -> Icons.Default.Warning
-                                isWarning -> Icons.Default.Warning
-                                else -> Icons.Default.CheckCircle
-                            },
-                            contentDescription = null,
-                            tint = progressColor,
-                            modifier = Modifier.size(20.dp)
-                        )
+                        Text(text = catEmoji, style = MaterialTheme.typography.titleMedium)
                     }
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
@@ -266,7 +383,7 @@ fun BudgetProgressCard(
                             text = budget.category,
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF111827)
+                                color = Color(0xFF0F172A)
                             )
                         )
                         Text(
@@ -287,7 +404,7 @@ fun BudgetProgressCard(
                     Icon(
                         imageVector = Icons.Default.Delete,
                         contentDescription = "Eliminar presupuesto",
-                        tint = Color(0xFF9CA3AF),
+                        tint = Color(0xFF94A3B8),
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -295,11 +412,11 @@ fun BudgetProgressCard(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Progress Bar
+            // Horizontal Bar Chart
             LinearProgressIndicator(
                 progress = { progress.coerceAtMost(1f) },
                 color = progressColor,
-                trackColor = Color(0xFFE5E7EB),
+                trackColor = Color(0xFFE2E8F0),
                 strokeCap = StrokeCap.Round,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -315,14 +432,14 @@ fun BudgetProgressCard(
                 Text(
                     text = "Gastado: ${formatCordobas(spent)}",
                     style = MaterialTheme.typography.bodyMedium.copy(
-                        color = Color(0xFF4B5563),
+                        color = Color(0xFF475569),
                         fontWeight = FontWeight.Medium
                     )
                 )
                 Text(
                     text = "Límite: ${formatCordobas(budget.monthlyLimit)}",
                     style = MaterialTheme.typography.bodyMedium.copy(
-                        color = Color(0xFF111827),
+                        color = Color(0xFF0F172A),
                         fontWeight = FontWeight.Bold
                     )
                 )
@@ -333,11 +450,18 @@ fun BudgetProgressCard(
 
 @Composable
 fun AddBudgetDialog(
-    availableCategories: List<String>,
     onDismiss: () -> Unit,
     onConfirm: (category: String, limit: Double) -> Unit
 ) {
-    var selectedCategory by remember { mutableStateOf(availableCategories.firstOrNull() ?: "Alimentación") }
+    var selectedGroupType by remember { mutableStateOf(CategoryGroupType.FIXED_EXPENSE) }
+    val currentGroupCategories = when (selectedGroupType) {
+        CategoryGroupType.FIXED_EXPENSE -> CategoryDataHierarchy.fixedExpenseGroup.categories
+        CategoryGroupType.VARIABLE_EXPENSE -> CategoryDataHierarchy.variableExpenseGroup.categories
+        CategoryGroupType.DEBT_PAYMENT -> CategoryDataHierarchy.debtPaymentGroup.categories
+        else -> CategoryDataHierarchy.fixedExpenseGroup.categories
+    }
+
+    var selectedCategory by remember { mutableStateOf(currentGroupCategories.first().nameEs) }
     var limitStr by remember { mutableStateOf("") }
     var errorMsg by remember { mutableStateOf<String?>(null) }
 
@@ -359,16 +483,54 @@ fun AddBudgetDialog(
                 }
 
                 Text(
+                    text = "Grupo de Gasto:",
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    FilterChip(
+                        selected = selectedGroupType == CategoryGroupType.FIXED_EXPENSE,
+                        onClick = {
+                            selectedGroupType = CategoryGroupType.FIXED_EXPENSE
+                            selectedCategory = CategoryDataHierarchy.fixedExpenseGroup.categories.first().nameEs
+                        },
+                        label = { Text("🔒 Fijos") },
+                        modifier = Modifier.weight(1f)
+                    )
+                    FilterChip(
+                        selected = selectedGroupType == CategoryGroupType.VARIABLE_EXPENSE,
+                        onClick = {
+                            selectedGroupType = CategoryGroupType.VARIABLE_EXPENSE
+                            selectedCategory = CategoryDataHierarchy.variableExpenseGroup.categories.first().nameEs
+                        },
+                        label = { Text("🎯 Deseos") },
+                        modifier = Modifier.weight(1f)
+                    )
+                    FilterChip(
+                        selected = selectedGroupType == CategoryGroupType.DEBT_PAYMENT,
+                        onClick = {
+                            selectedGroupType = CategoryGroupType.DEBT_PAYMENT
+                            selectedCategory = CategoryDataHierarchy.debtPaymentGroup.categories.first().nameEs
+                        },
+                        label = { Text("💳 Deudas") },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Text(
                     text = "Selecciona la categoría:",
                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
                 )
 
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(availableCategories) { cat ->
+                    items(currentGroupCategories) { cat ->
                         FilterChip(
-                            selected = selectedCategory == cat,
-                            onClick = { selectedCategory = cat },
-                            label = { Text(cat) }
+                            selected = selectedCategory == cat.nameEs,
+                            onClick = { selectedCategory = cat.nameEs },
+                            label = { Text("${cat.iconEmoji} ${cat.nameEs}") }
                         )
                     }
                 }

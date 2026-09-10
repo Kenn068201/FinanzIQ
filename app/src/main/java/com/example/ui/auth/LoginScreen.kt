@@ -2,6 +2,7 @@ package com.example.ui.auth
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,10 +25,15 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockClock
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -53,6 +59,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -64,12 +71,15 @@ import androidx.compose.ui.unit.sp
 import com.example.ui.FinanceViewModel
 import com.example.ui.components.ErrorWarningBox
 import com.example.ui.theme.FinanceBackground
+import com.example.ui.theme.FinanceError
 import com.example.ui.theme.FinanceOnPrimary
 import com.example.ui.theme.FinancePrimary
 import com.example.ui.theme.FinanceSecondary
 import com.example.ui.theme.FinanceSecondaryContainer
 import com.example.ui.theme.FinanceSuccess
 import com.example.ui.theme.FinanceSuccessContainer
+import com.example.util.Localization
+import java.util.Locale
 
 @Composable
 fun LoginScreen(
@@ -84,10 +94,16 @@ fun LoginScreen(
     var showForgotPasswordDialog by remember { mutableStateOf(false) }
 
     val authError by viewModel.authError.collectAsState()
+    val lockoutRemainingSeconds by viewModel.lockoutRemainingSeconds.collectAsState()
+    val failedAttempts by viewModel.failedLoginAttempts.collectAsState()
+    val isDarkMode by viewModel.isDarkMode.collectAsState()
+    val currentLang by viewModel.currentLanguage.collectAsState()
+
+    val isLockedOut = lockoutRemainingSeconds > 0
     val scrollState = rememberScrollState()
 
     Surface(
-        color = FinanceBackground,
+        color = MaterialTheme.colorScheme.background,
         modifier = modifier
             .fillMaxSize()
             .imePadding()
@@ -96,16 +112,79 @@ fun LoginScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(scrollState)
-                .padding(horizontal = 24.dp, vertical = 28.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+                .padding(horizontal = 24.dp, vertical = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(16.dp))
+            // Top Bar: Theme toggle (Top-Left) and Language selector (Top-Right)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Theme Toggle (Light / Dark)
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .clickable { viewModel.toggleDarkMode() }
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                        .testTag("theme_toggle_button"),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = if (isDarkMode) Icons.Default.LightMode else Icons.Default.DarkMode,
+                        contentDescription = "Cambiar Tema",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = if (isDarkMode) "Claro" else "Oscuro",
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    )
+                }
+
+                // Language Switcher (ES / EN)
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .clickable {
+                            val nextLang = if (currentLang == com.example.util.AppLanguage.SPANISH) com.example.util.AppLanguage.ENGLISH else com.example.util.AppLanguage.SPANISH
+                            viewModel.setLanguage(nextLang)
+                        }
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                        .testTag("language_selector_button"),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Language,
+                        contentDescription = "Cambiar Idioma",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = if (currentLang == com.example.util.AppLanguage.SPANISH) "🇪🇸 ES" else "🇺🇸 EN",
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
 
             // Brand Header with Pastel Sky Accents
             Box(
                 modifier = Modifier
-                    .size(80.dp)
+                    .size(76.dp)
                     .clip(CircleShape)
                     .background(FinanceSecondaryContainer),
                 contentAlignment = Alignment.Center
@@ -114,47 +193,139 @@ fun LoginScreen(
                     imageVector = Icons.Default.AccountBalanceWallet,
                     contentDescription = "Logo Finanzas",
                     tint = FinancePrimary,
-                    modifier = Modifier.size(44.dp)
+                    modifier = Modifier.size(42.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             Text(
-                text = "Finanzas Inteligentes",
+                text = Localization.t("app_title", currentLang),
                 style = MaterialTheme.typography.headlineLarge.copy(
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF111827)
+                    color = MaterialTheme.colorScheme.onBackground
                 ),
                 textAlign = TextAlign.Center
             )
 
             Text(
-                text = "Control total de tus ingresos, gastos y presupuestos",
+                text = Localization.t("app_subtitle", currentLang),
                 style = MaterialTheme.typography.bodyMedium.copy(
-                    color = Color(0xFF4B5563)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 ),
                 textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 6.dp, bottom = 24.dp)
+                modifier = Modifier.padding(top = 4.dp, bottom = 18.dp)
             )
 
-            // Red Warning Error Box (Mandatory requirement)
-            AnimatedVisibility(visible = authError != null) {
+            // Lockout Banner with Real-time Countdown Timer (3 failed attempts -> 5 min lock)
+            if (isLockedOut) {
+                val mins = lockoutRemainingSeconds / 60
+                val secs = lockoutRemainingSeconds % 60
+                val timerFormatted = String.format(Locale.US, "%02d:%02d", mins, secs)
+
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFEE2E2)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp)
+                        .border(1.5.dp, Color(0xFFDC2626), RoundedCornerShape(16.dp))
+                        .testTag("lockout_timer_banner")
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.LockClock,
+                                contentDescription = null,
+                                tint = Color(0xFFDC2626),
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = Localization.t("account_locked", currentLang),
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF991B1B)
+                                )
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = Localization.t("lockout_message", currentLang),
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                color = Color(0xFF7F1D1D),
+                                textAlign = TextAlign.Center
+                            )
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = timerFormatted,
+                            style = MaterialTheme.typography.headlineMedium.copy(
+                                fontWeight = FontWeight.Black,
+                                fontFamily = FontFamily.Monospace,
+                                color = Color(0xFFB91C1C),
+                                letterSpacing = 2.sp
+                            ),
+                            modifier = Modifier.testTag("lockout_countdown_text")
+                        )
+                    }
+                }
+            } else if (failedAttempts > 0) {
+                // Failed attempts reminder
+                Card(
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF3C7)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 14.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = Color(0xFFD97706),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "${Localization.t("failed_attempts_warning", currentLang)}: $failedAttempts/3",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF92400E)
+                            )
+                        )
+                    }
+                }
+            }
+
+            // Red Warning Error Box
+            AnimatedVisibility(visible = authError != null && !isLockedOut) {
                 authError?.let { msg ->
                     Column {
                         ErrorWarningBox(
                             message = msg,
                             testTag = "login_error_box"
                         )
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(14.dp))
                     }
                 }
             }
 
-            // Input Fields Card Container (Clean White with subtle border)
+            // Input Fields Card Container
             Card(
                 shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFFFF)),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -164,10 +335,10 @@ fun LoginScreen(
                         .padding(20.dp)
                 ) {
                     Text(
-                        text = "Iniciar Sesión",
+                        text = Localization.t("login_title", currentLang),
                         style = MaterialTheme.typography.titleLarge.copy(
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF111827)
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     )
                     Spacer(modifier = Modifier.height(16.dp))
@@ -175,17 +346,18 @@ fun LoginScreen(
                     // Email / Username Input
                     OutlinedTextField(
                         value = identifier,
+                        enabled = !isLockedOut,
                         onValueChange = {
                             identifier = it
                             if (authError != null) viewModel.clearAuthError()
                         },
-                        label = { Text("Usuario o Correo Electrónico") },
+                        label = { Text(Localization.t("username_or_email", currentLang)) },
                         placeholder = { Text("usuario@dominio.com") },
                         leadingIcon = {
                             Icon(
                                 imageVector = Icons.Default.Email,
                                 contentDescription = "Correo",
-                                tint = FinancePrimary
+                                tint = if (isLockedOut) MaterialTheme.colorScheme.outline else FinancePrimary
                             )
                         },
                         singleLine = true,
@@ -196,10 +368,8 @@ fun LoginScreen(
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = FinancePrimary,
-                            unfocusedBorderColor = Color(0xFFD1D5DB),
-                            focusedLabelColor = FinancePrimary,
-                            focusedTextColor = Color(0xFF111827),
-                            unfocusedTextColor = Color(0xFF111827)
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                            focusedLabelColor = FinancePrimary
                         ),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -211,17 +381,18 @@ fun LoginScreen(
                     // Password Input
                     OutlinedTextField(
                         value = password,
+                        enabled = !isLockedOut,
                         onValueChange = {
                             password = it
                             if (authError != null) viewModel.clearAuthError()
                         },
-                        label = { Text("Contraseña") },
-                        placeholder = { Text("Mín. 8 caracteres, 1 mayúscula, 1 número") },
+                        label = { Text(Localization.t("password", currentLang)) },
+                        placeholder = { Text(Localization.t("password_hint", currentLang)) },
                         leadingIcon = {
                             Icon(
                                 imageVector = Icons.Default.Lock,
                                 contentDescription = "Contraseña",
-                                tint = FinancePrimary
+                                tint = if (isLockedOut) MaterialTheme.colorScheme.outline else FinancePrimary
                             )
                         },
                         trailingIcon = {
@@ -240,17 +411,17 @@ fun LoginScreen(
                         ),
                         keyboardActions = KeyboardActions(
                             onDone = {
-                                val success = viewModel.login(identifier, password)
-                                if (success) onLoginSuccess()
+                                if (!isLockedOut) {
+                                    val success = viewModel.login(identifier, password)
+                                    if (success) onLoginSuccess()
+                                }
                             }
                         ),
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = FinancePrimary,
-                            unfocusedBorderColor = Color(0xFFD1D5DB),
-                            focusedLabelColor = FinancePrimary,
-                            focusedTextColor = Color(0xFF111827),
-                            unfocusedTextColor = Color(0xFF111827)
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                            focusedLabelColor = FinancePrimary
                         ),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -267,7 +438,7 @@ fun LoginScreen(
                             modifier = Modifier.testTag("forgot_password_button")
                         ) {
                             Text(
-                                text = "¿Olvidaste tu contraseña?",
+                                text = Localization.t("forgot_password", currentLang),
                                 style = MaterialTheme.typography.labelLarge.copy(
                                     color = FinancePrimary,
                                     fontWeight = FontWeight.SemiBold
@@ -281,13 +452,18 @@ fun LoginScreen(
                     // High-Contrast Primary Submit Button
                     Button(
                         onClick = {
-                            val ok = viewModel.login(identifier, password)
-                            if (ok) onLoginSuccess()
+                            if (!isLockedOut) {
+                                val ok = viewModel.login(identifier, password)
+                                if (ok) onLoginSuccess()
+                            }
                         },
+                        enabled = !isLockedOut,
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = FinancePrimary,
-                            contentColor = FinanceOnPrimary
+                            contentColor = FinanceOnPrimary,
+                            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                         ),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -295,7 +471,7 @@ fun LoginScreen(
                             .testTag("login_submit_button")
                     ) {
                         Text(
-                            text = "Iniciar Sesión",
+                            text = Localization.t("login_button", currentLang),
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontWeight = FontWeight.Bold
                             )
@@ -332,11 +508,14 @@ fun LoginScreen(
                     ) {
                         OutlinedButton(
                             onClick = {
-                                identifier = "elena@finanzas.com"
-                                password = "Elena2026!"
-                                viewModel.login(identifier, password)
-                                onLoginSuccess()
+                                if (!isLockedOut) {
+                                    identifier = "elena@finanzas.com"
+                                    password = "Elena2026!"
+                                    viewModel.login(identifier, password)
+                                    onLoginSuccess()
+                                }
                             },
+                            enabled = !isLockedOut,
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier
                                 .weight(1f)
@@ -354,11 +533,14 @@ fun LoginScreen(
 
                         OutlinedButton(
                             onClick = {
-                                identifier = "admin@finanzas.com"
-                                password = "Admin123!"
-                                viewModel.login(identifier, password)
-                                onLoginSuccess()
+                                if (!isLockedOut) {
+                                    identifier = "admin@finanzas.com"
+                                    password = "Admin123!"
+                                    viewModel.login(identifier, password)
+                                    onLoginSuccess()
+                                }
                             },
+                            enabled = !isLockedOut,
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier
                                 .weight(1f)
@@ -386,14 +568,14 @@ fun LoginScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    text = "¿No tienes una cuenta?",
+                    text = Localization.t("no_account", currentLang),
                     style = MaterialTheme.typography.bodyMedium.copy(
-                        color = Color(0xFF4B5563)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "Registrarme",
+                    text = Localization.t("register", currentLang),
                     style = MaterialTheme.typography.bodyMedium.copy(
                         color = FinancePrimary,
                         fontWeight = FontWeight.Bold
@@ -432,23 +614,21 @@ fun ForgotPasswordDialog(
         title = {
             Text(
                 text = "Recuperar Contraseña",
-                style = MaterialTheme.typography.titleLarge.copy(
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF111827)
-                )
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
             )
         },
         text = {
-            Column {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 Text(
-                    text = "Ingresa tu correo electrónico registrado ('usuario@dominio.com') para enviarte las instrucciones de restablecimiento.",
+                    text = "Ingresa el correo registrado con tu cuenta para restablecer el acceso.",
                     style = MaterialTheme.typography.bodyMedium.copy(color = Color(0xFF4B5563))
                 )
-                Spacer(modifier = Modifier.height(12.dp))
 
                 if (dialogError != null) {
                     ErrorWarningBox(message = dialogError!!)
-                    Spacer(modifier = Modifier.height(12.dp))
                 }
 
                 if (successNotice != null) {
@@ -463,7 +643,7 @@ fun ForgotPasswordDialog(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.CheckCircle,
-                                contentDescription = "Éxito",
+                                contentDescription = null,
                                 tint = FinanceSuccess,
                                 modifier = Modifier.size(20.dp)
                             )
@@ -471,13 +651,12 @@ fun ForgotPasswordDialog(
                             Text(
                                 text = successNotice!!,
                                 style = MaterialTheme.typography.bodySmall.copy(
-                                    fontWeight = FontWeight.Medium,
-                                    color = Color(0xFF14532D)
+                                    color = Color(0xFF065F46),
+                                    fontWeight = FontWeight.SemiBold
                                 )
                             )
                         }
                     }
-                    Spacer(modifier = Modifier.height(12.dp))
                 }
 
                 OutlinedTextField(
@@ -487,19 +666,23 @@ fun ForgotPasswordDialog(
                         dialogError = null
                     },
                     label = { Text("Correo Electrónico") },
-                    placeholder = { Text("usuario@dominio.com") },
+                    placeholder = { Text("tu_correo@dominio.com") },
+                    leadingIcon = {
+                        Icon(imageVector = Icons.Default.Email, contentDescription = null, tint = FinancePrimary)
+                    },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                     shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("forgot_email_input")
+                    modifier = Modifier.fillMaxWidth().testTag("forgot_password_email_input")
                 )
             }
         },
         confirmButton = {
             Button(
                 onClick = {
+                    if (emailInput.isBlank() || !emailInput.contains("@")) {
+                        dialogError = "Por favor ingresa un correo electrónico válido."
+                        return@Button
+                    }
                     viewModel.requestPasswordReset(emailInput) { ok, msg ->
                         if (ok) {
                             successNotice = msg
@@ -511,14 +694,14 @@ fun ForgotPasswordDialog(
                     }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = FinancePrimary),
-                modifier = Modifier.testTag("forgot_send_button")
+                modifier = Modifier.testTag("forgot_password_submit_button")
             ) {
-                Text("Enviar Enlace", fontWeight = FontWeight.Bold)
+                Text("Enviar Enlace")
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cerrar", color = Color(0xFF4B5563))
+                Text("Cerrar")
             }
         },
         shape = RoundedCornerShape(18.dp),
