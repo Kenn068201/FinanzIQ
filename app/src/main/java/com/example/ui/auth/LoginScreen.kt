@@ -115,7 +115,7 @@ fun LoginScreen(
                 .padding(horizontal = 24.dp, vertical = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Top Bar: Theme toggle (Top-Left) and Language selector (Top-Right)
+            // Barra superior: Alternar tema (arriba a la izquierda) y selector de idioma (arriba a la derecha)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -123,7 +123,7 @@ fun LoginScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Theme Toggle (Light / Dark)
+                // Alternar tema (claro / oscuro)
                 Row(
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
@@ -149,7 +149,7 @@ fun LoginScreen(
                     )
                 }
 
-                // Language Switcher (ES / EN)
+                // Selector de idioma (ES / EN)
                 Row(
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
@@ -181,7 +181,7 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Brand Header with Pastel Sky Accents
+            // Encabezado de marca con detalles en tonos pastel de cielo
             Box(
                 modifier = Modifier
                     .size(76.dp)
@@ -217,7 +217,7 @@ fun LoginScreen(
                 modifier = Modifier.padding(top = 4.dp, bottom = 18.dp)
             )
 
-            // Lockout Banner with Real-time Countdown Timer (3 failed attempts -> 5 min lock)
+            // Banner de bloqueo con contador regresivo en tiempo real (3 intentos fallidos → bloqueo de 5 minutos)
             if (isLockedOut) {
                 val mins = lockoutRemainingSeconds / 60
                 val secs = lockoutRemainingSeconds % 60
@@ -279,7 +279,7 @@ fun LoginScreen(
                     }
                 }
             } else if (failedAttempts > 0) {
-                // Failed attempts reminder
+                // Recordatorio de intentos fallidos
                 Card(
                     shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF3C7)),
@@ -309,7 +309,7 @@ fun LoginScreen(
                 }
             }
 
-            // Red Warning Error Box
+            // Cuadro de error de advertencia roja
             AnimatedVisibility(visible = authError != null && !isLockedOut) {
                 authError?.let { msg ->
                     Column {
@@ -322,7 +322,7 @@ fun LoginScreen(
                 }
             }
 
-            // Input Fields Card Container
+            // Contenedor de tarjetas de campos de entrada
             Card(
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -343,7 +343,7 @@ fun LoginScreen(
                     )
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Email / Username Input
+                    // Campo de correo electrónico / nombre de usuario
                     OutlinedTextField(
                         value = identifier,
                         enabled = !isLockedOut,
@@ -378,7 +378,7 @@ fun LoginScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Password Input
+                    // Introducción de contraseña
                     OutlinedTextField(
                         value = password,
                         enabled = !isLockedOut,
@@ -428,7 +428,7 @@ fun LoginScreen(
                             .testTag("login_password_input")
                     )
 
-                    // Forgot Password Button
+                    // Botón «Olvidé mi contraseña»
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.End
@@ -449,7 +449,7 @@ fun LoginScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // High-Contrast Primary Submit Button
+                    // Botón de envío principal de alto contraste
                     Button(
                         onClick = {
                             if (!isLockedOut) {
@@ -482,7 +482,7 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Quick Access Demo Buttons Card (Elena / Admin)
+            // Tarjeta de botones de demostración de acceso rápido (Elena / Admin)
             Card(
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = FinanceSecondaryContainer.copy(alpha = 0.6f)),
@@ -561,7 +561,7 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Register Redirection Button
+            // Botón de redirección de registro
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
@@ -590,7 +590,7 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(16.dp))
         }
 
-        // Forgot Password Dialog
+        // Cuadro de diálogo «Olvidé mi contraseña»
         if (showForgotPasswordDialog) {
             ForgotPasswordDialog(
                 viewModel = viewModel,
