@@ -68,16 +68,19 @@ import com.example.ui.theme.FinancePrimary
 import com.example.ui.theme.FinanceSecondaryContainer
 import com.example.ui.transactions.AddTransactionDialog
 import com.example.ui.transactions.TransactionsScreen
+import com.example.ui.wallets.ManageFinancialToolScreen
+import com.example.ui.wallets.WalletsScreen
 
-sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
-    object Dashboard : Screen("dashboard", "Inicio", Icons.Default.Home)
-    object Transactions : Screen("transactions", "Movimientos", Icons.Default.ReceiptLong)
-    object Budgets : Screen("budgets", "Presupuestos", Icons.Default.PieChart)
-    object Analytics : Screen("analytics", "Análisis", Icons.Default.BarChart)
-    object Savings : Screen("savings", "Ahorro", Icons.Default.Savings)
-    object Bills : Screen("bills", "Pagos", Icons.Default.NotificationsActive)
-    object AiAssistant : Screen("ai_assistant", "Asistente IA", Icons.Default.AutoAwesome)
-    object Admin : Screen("admin", "Admin", Icons.Default.AdminPanelSettings)
+sealed class Screen(val route: String, val titleKey: String, val icon: ImageVector) {
+    object Dashboard : Screen("dashboard", "nav_dashboard", Icons.Default.Home)
+    object Transactions : Screen("transactions", "nav_transactions", Icons.Default.ReceiptLong)
+    object Budgets : Screen("budgets", "nav_budgets", Icons.Default.PieChart)
+    object Analytics : Screen("analytics", "nav_analytics", Icons.Default.BarChart)
+    object Savings : Screen("savings", "nav_savings", Icons.Default.Savings)
+    object Bills : Screen("bills", "nav_bills", Icons.Default.NotificationsActive)
+    object Wallets : Screen("wallets", "nav_wallets", Icons.Default.AccountBalanceWallet)
+    object AiAssistant : Screen("ai_assistant", "nav_ai", Icons.Default.AutoAwesome)
+    object Admin : Screen("admin", "nav_admin", Icons.Default.AdminPanelSettings)
 }
 
 @Composable
@@ -125,6 +128,7 @@ fun AuthenticatedAppScaffold(
 ) {
     val currentUser by viewModel.currentUser.collectAsState()
     val categories by viewModel.categories.collectAsState()
+    val lang by viewModel.currentLanguage.collectAsState()
     val navController = rememberNavController()
     var currentRoute by remember { mutableStateOf(Screen.Dashboard.route) }
     var showUserMenu by remember { mutableStateOf(false) }
@@ -134,6 +138,7 @@ fun AuthenticatedAppScaffold(
 
     val isAdmin = currentUser?.role == "ADMIN"
 
+    // Se elimina la pestaña de billeteras de la barra de navegación conforme a la instrucción
     val navItems = buildList {
         add(Screen.Dashboard)
         add(Screen.Transactions)
@@ -169,15 +174,15 @@ fun AuthenticatedAppScaffold(
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                text = "Finanzas Inteligentes",
+                                text = "FinanzIQ",
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF0F172A)
+                                    color = MaterialTheme.colorScheme.onBackground
                                 )
                             )
                             Text(
-                                text = "${currentUser?.firstName ?: "Usuario"} • ${if (isAdmin) "🛡️ Admin" else "👤 Cliente"}",
-                                style = MaterialTheme.typography.labelSmall.copy(color = Color(0xFF64748B))
+                                text = "${currentUser?.firstName ?: "Usuario"} • ${if (isAdmin) "🛡️ ${com.example.util.Localization.t("role_admin", lang)}" else "👤 ${com.example.util.Localization.t("role_user", lang)}"}",
+                                style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                             )
                         }
                     }
@@ -216,7 +221,7 @@ fun AuthenticatedAppScaffold(
                                     Text(
                                         text = currentUser?.email ?: "",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = Color(0xFF64748B)
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             },
@@ -227,11 +232,11 @@ fun AuthenticatedAppScaffold(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(
                                         imageVector = Icons.AutoMirrored.Filled.ExitToApp,
-                                        contentDescription = "Cerrar sesión",
+                                        contentDescription = com.example.util.Localization.t("logout", lang),
                                         tint = FinanceError
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Cerrar Sesión", color = FinanceError, fontWeight = FontWeight.Bold)
+                                    Text(com.example.util.Localization.t("logout", lang), color = FinanceError, fontWeight = FontWeight.Bold)
                                 }
                             },
                             onClick = {
@@ -242,16 +247,17 @@ fun AuthenticatedAppScaffold(
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = FinanceBackground)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
             )
         },
         bottomBar = {
             NavigationBar(
-                containerColor = Color.White,
+                containerColor = MaterialTheme.colorScheme.surface,
                 tonalElevation = 2.dp
             ) {
                 navItems.forEach { screen ->
                     val isSelected = currentRoute == screen.route
+                    val title = com.example.util.Localization.t(screen.titleKey, lang)
                     NavigationBarItem(
                         selected = isSelected,
                         onClick = {
@@ -265,12 +271,12 @@ fun AuthenticatedAppScaffold(
                         icon = {
                             Icon(
                                 imageVector = screen.icon,
-                                contentDescription = screen.title
+                                contentDescription = title
                             )
                         },
                         label = {
                             Text(
-                                text = screen.title,
+                                text = title,
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                 )
@@ -280,15 +286,15 @@ fun AuthenticatedAppScaffold(
                             selectedIconColor = FinancePrimary,
                             selectedTextColor = FinancePrimary,
                             indicatorColor = FinanceSecondaryContainer,
-                            unselectedIconColor = Color(0xFF94A3B8),
-                            unselectedTextColor = Color(0xFF94A3B8)
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                         ),
                         modifier = Modifier.testTag("nav_tab_${screen.route}")
                     )
                 }
             }
         },
-        containerColor = FinanceBackground,
+        containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier.fillMaxSize()
     ) { innerPadding ->
         NavHost(
@@ -321,6 +327,10 @@ fun AuthenticatedAppScaffold(
                         currentRoute = Screen.AiAssistant.route
                         navController.navigate(Screen.AiAssistant.route)
                     },
+                    onNavigateToWallets = {
+                        currentRoute = Screen.Wallets.route
+                        navController.navigate(Screen.Wallets.route)
+                    },
                     onOpenAddTransaction = { type ->
                         quickAddType = type
                         showQuickAddDialog = true
@@ -334,6 +344,21 @@ fun AuthenticatedAppScaffold(
 
             composable(Screen.Budgets.route) {
                 BudgetsScreen(viewModel = viewModel)
+            }
+
+            composable(Screen.Wallets.route) {
+                WalletsScreen(
+                    viewModel = viewModel,
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToManageTool = { navController.navigate("manage_tool") }
+                )
+            }
+
+            composable("manage_tool") {
+                ManageFinancialToolScreen(
+                    viewModel = viewModel,
+                    onNavigateBack = { navController.popBackStack() }
+                )
             }
 
             composable(Screen.Analytics.route) {

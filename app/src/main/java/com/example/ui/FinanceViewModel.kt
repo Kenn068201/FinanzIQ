@@ -7,6 +7,7 @@ import com.example.data.local.AppDatabase
 import com.example.data.local.BillReminderEntity
 import com.example.data.local.BudgetEntity
 import com.example.data.local.CategoryEntity
+import com.example.data.local.FinancialAccountEntity
 import com.example.data.local.SavingsGoalEntity
 import com.example.data.local.TransactionEntity
 import com.example.data.local.UserEntity
@@ -27,7 +28,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 data class ChatMessage(
     val id: String,
@@ -138,6 +142,10 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     private val _bills = MutableStateFlow<List<BillReminderEntity>>(emptyList())
     val bills: StateFlow<List<BillReminderEntity>> = _bills.asStateFlow()
 
+    // --- Herramientas Financieras: Cuentas y Billeteras ---
+    private val _financialAccounts = MutableStateFlow<List<FinancialAccountEntity>>(emptyList())
+    val financialAccounts: StateFlow<List<FinancialAccountEntity>> = _financialAccounts.asStateFlow()
+
     // --- Categories ---
     private val _categories = MutableStateFlow<List<CategoryEntity>>(emptyList())
     val categories: StateFlow<List<CategoryEntity>> = _categories.asStateFlow()
@@ -174,11 +182,25 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     private val _simMonthlyAmount = MutableStateFlow(500.0)
     val simMonthlyAmount: StateFlow<Double> = _simMonthlyAmount.asStateFlow()
 
-    private val _simMonths = MutableStateFlow(12)
+    private val _simMonths = MutableStateFlow(24) // Default 2 years (24 months)
     val simMonths: StateFlow<Int> = _simMonths.asStateFlow()
 
     private val _simInterestRate = MutableStateFlow(5.0) // 5% annual
     val simInterestRate: StateFlow<Double> = _simInterestRate.asStateFlow()
+
+    // Daily simulator state
+    private val _simDailyAmount = MutableStateFlow(50.0)
+    val simDailyAmount: StateFlow<Double> = _simDailyAmount.asStateFlow()
+
+    private val _simDailyStartDate = MutableStateFlow(
+        SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+    )
+    val simDailyStartDate: StateFlow<String> = _simDailyStartDate.asStateFlow()
+
+    private val _simDailyEndDate = MutableStateFlow(
+        SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(System.currentTimeMillis() + 30L * 86400000L))
+    )
+    val simDailyEndDate: StateFlow<String> = _simDailyEndDate.asStateFlow()
 
     fun updateSimulator(monthly: Double, months: Int, rate: Double = 5.0) {
         _simMonthlyAmount.value = monthly
@@ -186,16 +208,89 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         _simInterestRate.value = rate
     }
 
+    fun updateDailySimulator(dailyAmount: Double, startDate: String, endDate: String) {
+        _simDailyAmount.value = dailyAmount
+        _simDailyStartDate.value = startDate
+        _simDailyEndDate.value = endDate
+    }
+
+    /**
+     * Calcula el resultado exacto de la simulación mensual:
+     * Retorna el monto principal exacto (Monto mensual * Meses) y el total proyectado.
+     */
     fun calculateSimulationTotal(): Pair<Double, Double> {
         val monthly = _simMonthlyAmount.value
         val months = _simMonths.value
         val principal = monthly * months
-        val monthlyRate = (_simInterestRate.value / 100) / 12
-        var accumulated = 0.0
-        for (i in 1..months) {
-            accumulated = (accumulated + monthly) * (1 + monthlyRate)
+        return principal to principal
+    }
+
+    /**
+     * Calcula el ahorro diario exacto entre dos fechas validadas.
+     * Retorna: Triple(días, totalAhorrado, mensajeDeErrorSiAplica)
+     */
+    fun calculateDailySimulation(): Triple<Int, Double, String?> {
+        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { isLenient = false }
+        val todayStr = sdf.format(Date())
+        val todayDate = try { sdf.parse(todayStr) } catch (e: Exception) { Date() }
+
+        val amount = _simDailyAmount.value
+        if (amount <= 0) {
+            val err = if (_currentLanguage.value == AppLanguage.SPANISH)
+                "El monto diario debe ser mayor a 0."
+            else
+                "Daily savings amount must be greater than 0."
+            return Triple(0, 0.0, err)
         }
-        return principal to accumulated
+
+        val startDate = try {
+            sdf.parse(_simDailyStartDate.value)
+        } catch (e: Exception) {
+            null
+        }
+
+        val endDate = try {
+            sdf.parse(_simDailyEndDate.value)
+        } catch (e: Exception) {
+            null
+        }
+
+        if (startDate == null) {
+            val err = if (_currentLanguage.value == AppLanguage.SPANISH)
+                "Formato de fecha de inicio inválido (Use AAAA-MM-DD)."
+            else
+                "Invalid start date format (Use YYYY-MM-DD)."
+            return Triple(0, 0.0, err)
+        }
+
+        if (endDate == null) {
+            val err = if (_currentLanguage.value == AppLanguage.SPANISH)
+                "Formato de fecha de fin inválido (Use AAAA-MM-DD)."
+            else
+                "Invalid end date format (Use YYYY-MM-DD)."
+            return Triple(0, 0.0, err)
+        }
+
+        if (startDate.before(todayDate)) {
+            val err = if (_currentLanguage.value == AppLanguage.SPANISH)
+                "La fecha de inicio debe ser igual o mayor a la fecha del sistema ($todayStr)."
+            else
+                "Start date must be today or a future date ($todayStr)."
+            return Triple(0, 0.0, err)
+        }
+
+        if (!endDate.after(startDate)) {
+            val err = if (_currentLanguage.value == AppLanguage.SPANISH)
+                "La fecha de fin debe ser mayor a la fecha de inicio ingresada."
+            else
+                "End date must be strictly greater than start date."
+            return Triple(0, 0.0, err)
+        }
+
+        val diffMillis = endDate.time - startDate.time
+        val days = (diffMillis / (1000 * 60 * 60 * 24)).toInt()
+        val total = days * amount
+        return Triple(days, total, null)
     }
 
     private fun observeCategories() {
@@ -232,6 +327,11 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             repository.getBillReminders(userId).collectLatest { bList ->
                 _bills.value = bList
+            }
+        }
+        viewModelScope.launch {
+            repository.getFinancialAccounts(userId).collectLatest { accList ->
+                _financialAccounts.value = accList
             }
         }
     }
@@ -480,7 +580,8 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         category: String,
         subCategory: String = "",
         dateMillis: Long = System.currentTimeMillis(),
-        note: String = ""
+        note: String = "",
+        accountId: Long? = null
     ) {
         val userId = _currentUser.value?.id ?: 1L
         viewModelScope.launch {
@@ -501,6 +602,19 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                     note = note.trim()
                 )
             )
+
+            // Si se especificó una cuenta o billetera activa del usuario, actualizar su saldo individual
+            if (accountId != null && accountId > 0L) {
+                val account = repository.getAccountById(accountId)
+                if (account != null && account.userId == userId) {
+                    val newBalance = if (type == "EXPENSE") {
+                        (account.balance - amount).coerceAtLeast(0.0)
+                    } else {
+                        account.balance + amount
+                    }
+                    repository.updateAccountBalance(accountId, newBalance)
+                }
+            }
         }
     }
 
@@ -817,9 +931,12 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         _chatMessages.value = _chatMessages.value + userMsg
         _isAiLoading.value = true
 
+        val isEnglish = _currentLanguage.value == AppLanguage.ENGLISH
+        val sym = _selectedCurrency.value.symbol
+
         viewModelScope.launch {
             val historyPairs = _chatMessages.value.map { it.sender to it.text }
-            val answer = repository.queryAiAssistant(user.id, q, historyPairs)
+            val answer = repository.queryAiAssistant(user.id, q, historyPairs, isEnglish, sym)
             val aiMsg = ChatMessage(id = (System.currentTimeMillis() + 1).toString(), sender = "ai", text = answer)
             _chatMessages.value = _chatMessages.value + aiMsg
             _isAiLoading.value = false
@@ -831,5 +948,401 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         val user = _currentUser.value
         val name = "${user?.firstName ?: ""} ${user?.lastName ?: ""}".trim().ifEmpty { "Usuario" }
         return repository.generateExportReport(_allTransactions.value, name)
+    }
+
+    // --- Herramientas Financieras (Cuentas y Billeteras) ---
+    /**
+     * Alterna el estado activo/deshabilitado de una cuenta o billetera financiera.
+     * Al deshabilitar, conserva el historial de transacciones intacto pero no permite nuevos cobros activos.
+     */
+    fun toggleAccountActive(account: FinancialAccountEntity) {
+        viewModelScope.launch {
+            repository.setFinancialAccountStatus(account.id, !account.isActive)
+        }
+    }
+
+    /**
+     * Realiza una transferencia entre cuentas bancarias y/o billeteras digitales del usuario.
+     * Valida:
+     * 1. Que origen y destino sean distintos.
+     * 2. Que ambas pertenezcan al usuario y estén activas.
+     * 3. Que el monto sea mayor a 0.
+     * 4. Límites: Billeteras máx C$ 15,000, Cuentas bancarias máx C$ 200,000.
+     * 5. Comisión: C$ 80 si los bancos son diferentes (se deduce del origen: Monto + C$ 80).
+     * 6. Fondos suficientes en la cuenta de origen.
+     */
+    fun transferFunds(
+        originAccount: FinancialAccountEntity,
+        destinationAccount: FinancialAccountEntity,
+        amount: Double,
+        onResult: (Boolean, String?) -> Unit
+    ) {
+        val user = _currentUser.value
+        if (user == null) {
+            onResult(false, if (_currentLanguage.value == AppLanguage.SPANISH) "Sesión inválida." else "Invalid session.")
+            return
+        }
+
+        // 1. Validar origen != destino
+        if (originAccount.id == destinationAccount.id) {
+            onResult(
+                false,
+                if (_currentLanguage.value == AppLanguage.SPANISH)
+                    "La cuenta o billetera de origen debe ser distinta a la cuenta o billetera de destino."
+                else
+                    "The source account/wallet must be different from the destination account/wallet."
+            )
+            return
+        }
+
+        // 2. Validar que ambas pertenezcan al mismo usuario
+        if (originAccount.userId != user.id || destinationAccount.userId != user.id) {
+            onResult(
+                false,
+                if (_currentLanguage.value == AppLanguage.SPANISH)
+                    "La transacción no es válida ya que las cuentas no están vinculadas al mismo usuario."
+                else
+                    "The transaction is not valid because the accounts are not linked to the same user."
+            )
+            return
+        }
+
+        // Validar que ambas estén activas
+        if (!originAccount.isActive || !destinationAccount.isActive) {
+            onResult(
+                false,
+                if (_currentLanguage.value == AppLanguage.SPANISH)
+                    "Una de las cuentas o billeteras seleccionadas se encuentra deshabilitada."
+                else
+                    "One of the selected accounts or wallets is currently disabled."
+            )
+            return
+        }
+
+        // 3. Validar monto > 0
+        if (amount <= 0.0) {
+            onResult(
+                false,
+                if (_currentLanguage.value == AppLanguage.SPANISH)
+                    "El monto asignado debe ser mayor a 0."
+                else
+                    "The assigned amount must be greater than 0."
+            )
+            return
+        }
+
+        // 4. Validar límites de monto: Billeteras max 15,000, Cuentas bancarias max 200,000
+        val isWalletInvolved = originAccount.toolType == "BILLETERA" || destinationAccount.toolType == "BILLETERA"
+        val maxLimit = if (isWalletInvolved) 15000.0 else 200000.0
+        if (amount > maxLimit) {
+            onResult(
+                false,
+                if (_currentLanguage.value == AppLanguage.SPANISH) {
+                    if (isWalletInvolved)
+                        "El monto no debe ser mayor a C$ 15,000.00 en transacciones que involucran billeteras digitales."
+                    else
+                        "El monto máximo permitido para transacciones entre cuentas bancarias es de C$ 200,000.00."
+                } else {
+                    if (isWalletInvolved)
+                        "The amount must not exceed C$ 15,000.00 for transactions involving digital wallets."
+                    else
+                        "The maximum amount allowed for transactions between bank accounts is C$ 200,000.00."
+                }
+            )
+            return
+        }
+
+        // 5. Validar comisión por bancos distintos (C$ 80 adicionales deducidos de la cuenta de origen)
+        val isDifferentBank = !originAccount.bankName.equals(destinationAccount.bankName, ignoreCase = true)
+        val commission = if (isDifferentBank) 80.0 else 0.0
+        val totalToDeduct = amount + commission
+
+        // 6. Validar fondos suficientes en la cuenta de origen
+        if (originAccount.balance < totalToDeduct) {
+            onResult(
+                false,
+                if (_currentLanguage.value == AppLanguage.SPANISH)
+                    "No se puede realizar la transacción por falta de fondos disponibles en la cuenta/billetera de origen (Saldo disponible: C$ ${String.format(Locale.US, "%,.2f", originAccount.balance)}, Requerido: C$ ${String.format(Locale.US, "%,.2f", totalToDeduct)})."
+                else
+                    "Cannot complete transaction due to insufficient funds in the source account/wallet (Available: C$ ${String.format(Locale.US, "%,.2f", originAccount.balance)}, Required: C$ ${String.format(Locale.US, "%,.2f", totalToDeduct)})."
+            )
+            return
+        }
+
+        viewModelScope.launch {
+            repository.transferBetweenAccounts(
+                originAccount = originAccount,
+                destinationAccount = destinationAccount,
+                amount = amount,
+                commission = commission
+            )
+            onResult(true, null)
+        }
+    }
+
+    /**
+     * Realiza un abono a una meta de ahorro descontando los fondos de la cuenta o billetera seleccionada.
+     * Valida la titularidad del usuario, que la cuenta esté activa, que el monto sea > 0 y fondos suficientes.
+     */
+    fun depositFundsToSavingsGoal(
+        goal: SavingsGoalEntity,
+        sourceAccount: FinancialAccountEntity?,
+        amount: Double,
+        onResult: (Boolean, String?) -> Unit
+    ) {
+        val user = _currentUser.value
+        if (user == null) {
+            onResult(false, if (_currentLanguage.value == AppLanguage.SPANISH) "Sesión no válida." else "Invalid session.")
+            return
+        }
+
+        if (sourceAccount == null) {
+            onResult(
+                false,
+                if (_currentLanguage.value == AppLanguage.SPANISH)
+                    "Debe seleccionar la cuenta bancaria o billetera de origen de los fondos."
+                else
+                    "You must select the source bank account or wallet for the funds."
+            )
+            return
+        }
+
+        if (sourceAccount.userId != user.id) {
+            onResult(
+                false,
+                if (_currentLanguage.value == AppLanguage.SPANISH)
+                    "La cuenta de origen seleccionada no está vinculada al usuario actual."
+                else
+                    "The selected source account is not linked to the current user."
+            )
+            return
+        }
+
+        if (!sourceAccount.isActive) {
+            onResult(
+                false,
+                if (_currentLanguage.value == AppLanguage.SPANISH)
+                    "La cuenta o billetera seleccionada se encuentra deshabilitada. Debe reactivarla para usarla."
+                else
+                    "The selected account or wallet is disabled. You must reactivate it to use it."
+            )
+            return
+        }
+
+        if (amount <= 0.0) {
+            onResult(
+                false,
+                if (_currentLanguage.value == AppLanguage.SPANISH)
+                    "El monto a abonar debe ser mayor a 0."
+                else
+                    "The deposit amount must be greater than 0."
+            )
+            return
+        }
+
+        if (sourceAccount.balance < amount) {
+            onResult(
+                false,
+                if (_currentLanguage.value == AppLanguage.SPANISH)
+                    "Fondos insuficientes en la cuenta/billetera seleccionada (Disponible: C$ ${String.format(Locale.US, "%,.2f", sourceAccount.balance)}, Requerido: C$ ${String.format(Locale.US, "%,.2f", amount)})."
+                else
+                    "Insufficient funds in the selected account/wallet (Available: C$ ${String.format(Locale.US, "%,.2f", sourceAccount.balance)}, Required: C$ ${String.format(Locale.US, "%,.2f", amount)})."
+            )
+            return
+        }
+
+        viewModelScope.launch {
+            // Deducir de la cuenta/billetera origen
+            val updatedAccount = sourceAccount.copy(balance = sourceAccount.balance - amount)
+            repository.updateFinancialAccount(updatedAccount)
+
+            // Abonar a la meta de ahorro
+            val updatedGoal = goal.copy(currentAmount = goal.currentAmount + amount)
+            repository.updateSavingsGoal(updatedGoal)
+
+            // Registrar transacción de gasto / aporte a meta
+            repository.addTransaction(
+                TransactionEntity(
+                    userId = user.id,
+                    title = "Aporte a Meta: ${goal.title}",
+                    amount = amount,
+                    type = "EXPENSE",
+                    category = "Ahorro e Inversión",
+                    dateMillis = System.currentTimeMillis(),
+                    note = "Abono desde ${sourceAccount.bankName} (${sourceAccount.accountType} - ${sourceAccount.accountNumber})"
+                )
+            )
+
+            onResult(true, null)
+        }
+    }
+
+    /**
+     * Registra una nueva herramienta financiera (Cuenta Bancaria o Billetera Digital).
+     * Ejecuta validaciones estrictas de montos mínimos y coincidencia de número telefónico y cuenta vinculada.
+     */
+    fun addFinancialTool(
+        toolType: String, // "CUENTA" o "BILLETERA"
+        bankName: String,
+        accountType: String, // "DEBITO", "CREDITO", "BILLETERA"
+        debitSubType: String, // "AHORRO", "CORRIENTE", "NOMINA"
+        accountNumber: String,
+        creditLimit: Double,
+        initialBalance: Double,
+        associatedPhone: String,
+        linkedBank: String,
+        linkedAccountType: String,
+        linkedDebitSubType: String,
+        linkedAccountNumber: String,
+        onResult: (Boolean, String?) -> Unit
+    ) {
+        val user = _currentUser.value
+        if (user == null) {
+            onResult(false, "Sesión no válida. Por favor, vuelva a iniciar sesión.")
+            return
+        }
+
+        if (toolType == "BILLETERA") {
+            val userDigits = user.phone.filter { it.isDigit() }
+            val inputDigits = associatedPhone.filter { it.isDigit() }
+
+            // 1. Validación de número de teléfono del usuario
+            if (inputDigits.isBlank()) {
+                onResult(false, "Debe ingresar el número telefónico asociado a la billetera digital.")
+                return
+            }
+            if (inputDigits != userDigits) {
+                onResult(
+                    false,
+                    "El número telefónico ingresado ($associatedPhone) no coincide con el número registrado en su perfil (${user.phone}). La billetera debe pertenecer al titular."
+                )
+                return
+            }
+
+            // 2. Validación de cuenta bancaria vinculada
+            if (linkedBank.isBlank() || linkedAccountNumber.isBlank()) {
+                onResult(
+                    false,
+                    "Debe seleccionar o especificar la cuenta bancaria vinculada (Banco, Tipo, Subtipo y Número de Cuenta) para respaldar la billetera."
+                )
+                return
+            }
+
+            val matchingAccount = _financialAccounts.value.find {
+                it.toolType == "CUENTA" &&
+                it.bankName.equals(linkedBank.trim(), ignoreCase = true) &&
+                (it.accountNumber.filter { c -> c.isDigit() } == linkedAccountNumber.filter { c -> c.isDigit() } ||
+                 it.accountNumber.contains(linkedAccountNumber.trim()))
+            }
+
+            if (matchingAccount == null) {
+                onResult(
+                    false,
+                    "La cuenta bancaria vinculada ($linkedBank - $linkedAccountNumber) no coincide con ninguna cuenta activa registrada en su perfil."
+                )
+                return
+            }
+
+            if (initialBalance < 0.0) {
+                onResult(false, "El saldo inicial de la billetera no puede ser negativo.")
+                return
+            }
+
+            viewModelScope.launch {
+                repository.addFinancialAccount(
+                    FinancialAccountEntity(
+                        userId = user.id,
+                        toolType = "BILLETERA",
+                        bankName = bankName.ifBlank { matchingAccount.bankName },
+                        accountType = "BILLETERA",
+                        debitSubType = "",
+                        accountNumber = associatedPhone.trim(),
+                        creditLimit = 0.0,
+                        balance = initialBalance,
+                        associatedPhone = associatedPhone.trim(),
+                        linkedBank = matchingAccount.bankName,
+                        linkedAccountType = matchingAccount.accountType,
+                        linkedDebitSubType = matchingAccount.debitSubType,
+                        linkedAccountNumber = matchingAccount.accountNumber,
+                        isActive = true
+                    )
+                )
+                onResult(true, null)
+            }
+        } else {
+            // Validación de Cuenta Bancaria
+            if (bankName.isBlank()) {
+                onResult(false, "Debe seleccionar una institución bancaria de Nicaragua.")
+                return
+            }
+            if (accountNumber.trim().length < 6) {
+                onResult(false, "El número de cuenta bancaria debe contener al menos 6 dígitos válidos.")
+                return
+            }
+
+            if (accountType == "DEBITO") {
+                val minRequired = when (debitSubType) {
+                    "AHORRO" -> 500.0
+                    "CORRIENTE" -> 2500.0
+                    "NOMINA" -> 0.0
+                    else -> 500.0
+                }
+                if (initialBalance < minRequired) {
+                    onResult(
+                        false,
+                        "El monto mínimo de apertura para una Cuenta de $debitSubType en $bankName es de C$ ${String.format(Locale.US, "%.2f", minRequired)}."
+                    )
+                    return
+                }
+
+                viewModelScope.launch {
+                    repository.addFinancialAccount(
+                        FinancialAccountEntity(
+                            userId = user.id,
+                            toolType = "CUENTA",
+                            bankName = bankName.trim(),
+                            accountType = "DEBITO",
+                            debitSubType = debitSubType,
+                            accountNumber = accountNumber.trim(),
+                            creditLimit = 0.0,
+                            balance = initialBalance,
+                            isActive = true
+                        )
+                    )
+                    onResult(true, null)
+                }
+            } else if (accountType == "CREDITO") {
+                if (creditLimit < 7000.0) {
+                    onResult(
+                        false,
+                        "El límite de crédito mínimo para una tarjeta de crédito en $bankName es de C$ 7,000.00 (o equivalente $200)."
+                    )
+                    return
+                }
+                if (initialBalance < 0.0 || initialBalance > creditLimit) {
+                    onResult(false, "El saldo disponible inicial debe estar entre C$ 0.00 y el límite de crédito aprobado (C$ ${String.format(Locale.US, "%.2f", creditLimit)}).")
+                    return
+                }
+
+                viewModelScope.launch {
+                    repository.addFinancialAccount(
+                        FinancialAccountEntity(
+                            userId = user.id,
+                            toolType = "CUENTA",
+                            bankName = bankName.trim(),
+                            accountType = "CREDITO",
+                            debitSubType = "",
+                            accountNumber = accountNumber.trim(),
+                            creditLimit = creditLimit,
+                            balance = initialBalance,
+                            isActive = true
+                        )
+                    )
+                    onResult(true, null)
+                }
+            } else {
+                onResult(false, "Seleccione un tipo de cuenta válido (Débito o Crédito).")
+            }
+        }
     }
 }

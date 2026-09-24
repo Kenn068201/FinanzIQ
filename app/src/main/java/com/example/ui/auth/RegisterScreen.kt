@@ -123,7 +123,7 @@ fun RegisterScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = Localization.t("register_title", currentLang),
+                        text = "Registro de Usuario",
                         style = MaterialTheme.typography.titleLarge.copy(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onBackground
@@ -165,7 +165,7 @@ fun RegisterScreen(
                 )
             )
             Text(
-                text = "Ingresa tus datos con las validaciones requeridas de la plataforma.",
+                text = Localization.t("register_hint_box", currentLang),
                 style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
                 modifier = Modifier.padding(top = 4.dp, bottom = 14.dp)
             )
@@ -206,7 +206,7 @@ fun RegisterScreen(
                                 }
                             },
                             label = { Text(Localization.t("first_names", currentLang)) },
-                            placeholder = { Text("Inicia con Mayúscula (máx. 70 carac.)") },
+                            placeholder = { Text(if (currentLang == com.example.util.AppLanguage.ENGLISH) "Starts with Capital (max 70 chars)" else "Inicia con Mayúscula (máx. 70 carac.)") },
                             leadingIcon = {
                                 Icon(Icons.Default.Person, contentDescription = null, tint = FinancePrimary)
                             },
@@ -233,7 +233,7 @@ fun RegisterScreen(
                         )
                         if (firstNames.length >= 70) {
                             Text(
-                                text = "Has alcanzado el límite máximo de 70 caracteres para este campo.",
+                                text = if (currentLang == com.example.util.AppLanguage.ENGLISH) "You have reached the maximum limit of 70 characters." else "Has alcanzado el límite máximo de 70 caracteres para este campo.",
                                 style = MaterialTheme.typography.labelSmall.copy(color = FinanceError),
                                 modifier = Modifier.padding(start = 6.dp, top = 2.dp)
                             )
@@ -251,7 +251,7 @@ fun RegisterScreen(
                                 }
                             },
                             label = { Text(Localization.t("last_names", currentLang)) },
-                            placeholder = { Text("Inicia con Mayúscula (máx. 70 carac.)") },
+                            placeholder = { Text(if (currentLang == com.example.util.AppLanguage.ENGLISH) "Starts with Capital (max 70 chars)" else "Inicia con Mayúscula (máx. 70 carac.)") },
                             leadingIcon = {
                                 Icon(Icons.Default.Person, contentDescription = null, tint = FinancePrimary)
                             },
@@ -278,7 +278,7 @@ fun RegisterScreen(
                         )
                         if (lastNames.length >= 70) {
                             Text(
-                                text = "Has alcanzado el límite máximo de 70 caracteres para este campo.",
+                                text = if (currentLang == com.example.util.AppLanguage.ENGLISH) "You have reached the maximum limit of 70 characters." else "Has alcanzado el límite máximo de 70 caracteres para este campo.",
                                 style = MaterialTheme.typography.labelSmall.copy(color = FinanceError),
                                 modifier = Modifier.padding(start = 6.dp, top = 2.dp)
                             )
@@ -293,7 +293,7 @@ fun RegisterScreen(
                             if (authError != null) viewModel.clearAuthError()
                         },
                         label = { Text(Localization.t("age", currentLang)) },
-                        placeholder = { Text("ej. 25 (Mayor a 18 años)") },
+                        placeholder = { Text(if (currentLang == com.example.util.AppLanguage.ENGLISH) "e.g. 25 (Must be over 18)" else "ej. 25 (Mayor a 18 años)") },
                         leadingIcon = {
                             Icon(Icons.Default.Cake, contentDescription = null, tint = FinancePrimary)
                         },
@@ -312,7 +312,7 @@ fun RegisterScreen(
                     // 4. Country Prefix & Phone Segmenter
                     Column {
                         Text(
-                            text = "Prefijo Telefónico y Número:",
+                            text = Localization.t("phone_prefix_and_number", currentLang),
                             style = MaterialTheme.typography.labelMedium.copy(
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -347,7 +347,7 @@ fun RegisterScreen(
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Icon(
                                         imageVector = Icons.Default.ArrowDropDown,
-                                        contentDescription = "Seleccionar País",
+                                        contentDescription = "Select Country",
                                         tint = FinancePrimary,
                                         modifier = Modifier.size(20.dp)
                                     )
@@ -355,6 +355,7 @@ fun RegisterScreen(
                             }
 
                             // Phone Input
+                            val countryDisplayName = if (currentLang == com.example.util.AppLanguage.SPANISH) selectedCountry.nameEs else selectedCountry.nameEn
                             OutlinedTextField(
                                 value = phone,
                                 onValueChange = {
@@ -364,7 +365,7 @@ fun RegisterScreen(
                                         if (authError != null) viewModel.clearAuthError()
                                     }
                                 },
-                                label = { Text("Teléfono (${if (currentLang == com.example.util.AppLanguage.SPANISH) selectedCountry.nameEs else selectedCountry.nameEn})") },
+                                label = { Text("${Localization.t("phone", currentLang)} ($countryDisplayName)") },
                                 placeholder = { Text(selectedCountry.formatHint) },
                                 leadingIcon = {
                                     Icon(Icons.Default.Phone, contentDescription = null, tint = FinancePrimary)
@@ -384,9 +385,12 @@ fun RegisterScreen(
 
                         // Hint for country format
                         val countryName = if (currentLang == com.example.util.AppLanguage.SPANISH) selectedCountry.nameEs else selectedCountry.nameEn
+                        val formatPrefix = if (currentLang == com.example.util.AppLanguage.ENGLISH) "Format" else "Formato"
+                        val digitsWord = if (currentLang == com.example.util.AppLanguage.ENGLISH) "digits" else "dígitos"
+                        val startsWithWord = if (currentLang == com.example.util.AppLanguage.ENGLISH) ", starts with " else ", inicia con "
                         Text(
-                            text = "Formato ($countryName): ${selectedCountry.maxDigits} dígitos" +
-                                    if (selectedCountry.allowedStartDigits.isNotEmpty()) ", inicia con ${selectedCountry.allowedStartDigits.joinToString(", ")}" else "",
+                            text = "$formatPrefix ($countryName): ${selectedCountry.maxDigits} $digitsWord" +
+                                    if (selectedCountry.allowedStartDigits.isNotEmpty()) "$startsWithWord${selectedCountry.allowedStartDigits.joinToString(", ")}" else "",
                             style = MaterialTheme.typography.labelSmall.copy(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 11.sp
@@ -398,7 +402,7 @@ fun RegisterScreen(
                     // Currency Selector Segmenter
                     Column {
                         Text(
-                            text = "Moneda Preferida:",
+                            text = Localization.t("preferred_currency", currentLang),
                             style = MaterialTheme.typography.labelMedium.copy(
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -461,7 +465,7 @@ fun RegisterScreen(
                             email = it
                             if (authError != null) viewModel.clearAuthError()
                         },
-                        label = { Text("Correo Electrónico ('usuario@dominio.com')") },
+                        label = { Text("${Localization.t("email", currentLang)} ('user@domain.com')") },
                         placeholder = { Text("usuario@dominio.com") },
                         leadingIcon = {
                             Icon(Icons.Default.Email, contentDescription = null, tint = FinancePrimary)
@@ -485,8 +489,8 @@ fun RegisterScreen(
                             password = it
                             if (authError != null) viewModel.clearAuthError()
                         },
-                        label = { Text("Contraseña") },
-                        placeholder = { Text("8-20 carac., Mayús, Número, Especial") },
+                        label = { Text(Localization.t("password", currentLang)) },
+                        placeholder = { Text(if (currentLang == com.example.util.AppLanguage.ENGLISH) "8-20 chars, Upper, Number, Special" else "8-20 carac., Mayús, Número, Especial") },
                         leadingIcon = {
                             Icon(Icons.Default.Lock, contentDescription = null, tint = FinancePrimary)
                         },
@@ -518,8 +522,8 @@ fun RegisterScreen(
                             confirmPassword = it
                             if (authError != null) viewModel.clearAuthError()
                         },
-                        label = { Text("Confirmar Contraseña") },
-                        placeholder = { Text("Repite exactamente tu contraseña") },
+                        label = { Text(Localization.t("confirm_password", currentLang)) },
+                        placeholder = { Text(if (currentLang == com.example.util.AppLanguage.ENGLISH) "Repeat your password exactly" else "Repite exactamente tu contraseña") },
                         leadingIcon = {
                             Icon(Icons.Default.Lock, contentDescription = null, tint = FinancePrimary)
                         },
@@ -547,7 +551,7 @@ fun RegisterScreen(
                     // Tipo de Usuario (Normal vs Administrador)
                     Column {
                         Text(
-                            text = "Tipo de Cuenta:",
+                            text = Localization.t("account_type", currentLang),
                             style = MaterialTheme.typography.labelMedium.copy(
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -558,7 +562,7 @@ fun RegisterScreen(
                             FilterChip(
                                 selected = selectedRole == "USER",
                                 onClick = { selectedRole = "USER" },
-                                label = { Text("Usuario Normal") },
+                                label = { Text(Localization.t("role_user", currentLang)) },
                                 leadingIcon = {
                                     Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(16.dp))
                                 },
@@ -572,7 +576,7 @@ fun RegisterScreen(
                             FilterChip(
                                 selected = selectedRole == "ADMIN",
                                 onClick = { selectedRole = "ADMIN" },
-                                label = { Text("Administrador") },
+                                label = { Text(Localization.t("role_admin", currentLang)) },
                                 leadingIcon = {
                                     Icon(Icons.Default.Security, contentDescription = null, modifier = Modifier.size(16.dp))
                                 },
@@ -587,7 +591,7 @@ fun RegisterScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Submit Registration Button
+                    // Botón principal para registrar usuario
                     Button(
                         onClick = {
                             viewModel.register(
@@ -626,14 +630,14 @@ fun RegisterScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Back to Login Link
+            // Enlace de redirección al inicio de sesión
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = Localization.t("already_have_account", currentLang),
+                    text = Localization.t("already_account", currentLang),
                     style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
@@ -662,7 +666,7 @@ fun RegisterScreen(
                         Icon(Icons.Default.Public, contentDescription = null, tint = FinancePrimary)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Prefijo Telefónico (América)",
+                            text = if (currentLang == com.example.util.AppLanguage.ENGLISH) "Phone Dial Prefix (Americas)" else "Prefijo Telefónico (América)",
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                         )
                     }
@@ -701,6 +705,7 @@ fun RegisterScreen(
                                     Spacer(modifier = Modifier.width(10.dp))
                                     Column {
                                         val cName = if (currentLang == com.example.util.AppLanguage.SPANISH) country.nameEs else country.nameEn
+                                        val digitsWord = if (currentLang == com.example.util.AppLanguage.ENGLISH) "digits" else "dígitos"
                                         Text(
                                             text = "${country.dialPrefix} ($cName)",
                                             style = MaterialTheme.typography.bodyMedium.copy(
@@ -709,7 +714,7 @@ fun RegisterScreen(
                                             )
                                         )
                                         Text(
-                                            text = "${country.maxDigits} dígitos • ${country.formatHint}",
+                                            text = "${country.maxDigits} $digitsWord • ${country.formatHint}",
                                             style = MaterialTheme.typography.labelSmall.copy(
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
@@ -719,7 +724,7 @@ fun RegisterScreen(
                                 if (isSelected) {
                                     Icon(
                                         imageVector = Icons.Default.Check,
-                                        contentDescription = "Seleccionado",
+                                        contentDescription = "Selected",
                                         tint = FinancePrimary,
                                         modifier = Modifier.size(18.dp)
                                     )
@@ -730,7 +735,7 @@ fun RegisterScreen(
                 },
                 confirmButton = {
                     TextButton(onClick = { showCountryDialog = false }) {
-                        Text("Cerrar")
+                        Text(Localization.t("close", currentLang))
                     }
                 },
                 shape = RoundedCornerShape(18.dp),
@@ -747,7 +752,7 @@ fun RegisterScreen(
                         Icon(Icons.Default.MonetizationOn, contentDescription = null, tint = FinancePrimary)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Moneda del Usuario",
+                            text = if (currentLang == com.example.util.AppLanguage.ENGLISH) "User Currency" else "Moneda del Usuario",
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                         )
                     }
@@ -800,7 +805,7 @@ fun RegisterScreen(
                                 if (isSelected) {
                                     Icon(
                                         imageVector = Icons.Default.Check,
-                                        contentDescription = "Seleccionado",
+                                        contentDescription = "Selected",
                                         tint = FinancePrimary,
                                         modifier = Modifier.size(18.dp)
                                     )
@@ -811,7 +816,7 @@ fun RegisterScreen(
                 },
                 confirmButton = {
                     TextButton(onClick = { showCurrencyDialog = false }) {
-                        Text("Cerrar")
+                        Text(Localization.t("close", currentLang))
                     }
                 },
                 shape = RoundedCornerShape(18.dp),

@@ -16,9 +16,10 @@ import kotlinx.coroutines.launch
         BudgetEntity::class,
         SavingsGoalEntity::class,
         BillReminderEntity::class,
-        CategoryEntity::class
+        CategoryEntity::class,
+        FinancialAccountEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -28,6 +29,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun savingsGoalDao(): SavingsGoalDao
     abstract fun billReminderDao(): BillReminderDao
     abstract fun categoryDao(): CategoryDao
+    abstract fun financialAccountDao(): FinancialAccountDao
 
     companion object {
         @Volatile
@@ -61,6 +63,10 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Población inicial de la base de datos con usuarios de prueba y cuentas reales de Nicaragua.
+         * Genera las cuentas bancarias (BAC, LAFISE, Banpro, Ficohsa, Avanz, BDF) y billeteras asociadas.
+         */
         suspend fun populateInitialData(db: AppDatabase) {
             val categoryDao = db.categoryDao()
             val userDao = db.userDao()
@@ -68,8 +74,9 @@ abstract class AppDatabase : RoomDatabase() {
             val budgetDao = db.budgetDao()
             val goalDao = db.savingsGoalDao()
             val billDao = db.billReminderDao()
+            val accountDao = db.financialAccountDao()
 
-            // Default Categories
+            // Categorías por defecto del sistema
             val defaultCategories = listOf(
                 CategoryEntity(name = "Alimentación", type = "EXPENSE", iconName = "restaurant", colorHex = "#EF4444"),
                 CategoryEntity(name = "Transporte", type = "EXPENSE", iconName = "directions_bus", colorHex = "#F97316"),
@@ -87,7 +94,7 @@ abstract class AppDatabase : RoomDatabase() {
             )
             categoryDao.insertCategories(defaultCategories)
 
-            // Pre-populated Admin User
+            // Usuario de prueba: Administrador Carlos
             val adminId = userDao.insertUser(
                 UserEntity(
                     firstName = "Carlos",
@@ -100,7 +107,7 @@ abstract class AppDatabase : RoomDatabase() {
                 )
             )
 
-            // Pre-populated Regular User
+            // Usuario de prueba: Cliente Elena
             val demoUserId = userDao.insertUser(
                 UserEntity(
                     firstName = "Elena",
@@ -113,10 +120,127 @@ abstract class AppDatabase : RoomDatabase() {
                 )
             )
 
+            // Cuentas y billeteras con formato de Nicaragua para Elena Gómez (Tel: 77889900)
+            val elenaAccounts = listOf(
+                FinancialAccountEntity(
+                    userId = demoUserId,
+                    toolType = "CUENTA",
+                    bankName = "BAC",
+                    accountType = "DEBITO",
+                    debitSubType = "AHORRO",
+                    accountNumber = "001-987654-3",
+                    balance = 14200.0,
+                    isActive = true
+                ),
+                FinancialAccountEntity(
+                    userId = demoUserId,
+                    toolType = "CUENTA",
+                    bankName = "LAFISE",
+                    accountType = "DEBITO",
+                    debitSubType = "NOMINA",
+                    accountNumber = "204-554433-1",
+                    balance = 9800.0,
+                    isActive = true
+                ),
+                FinancialAccountEntity(
+                    userId = demoUserId,
+                    toolType = "CUENTA",
+                    bankName = "Banpro",
+                    accountType = "CREDITO",
+                    debitSubType = "",
+                    accountNumber = "402-112233-9",
+                    creditLimit = 35000.0,
+                    balance = 18500.0,
+                    isActive = true
+                ),
+                FinancialAccountEntity(
+                    userId = demoUserId,
+                    toolType = "BILLETERA",
+                    bankName = "Banpro",
+                    accountType = "BILLETERA",
+                    debitSubType = "",
+                    accountNumber = "77889900",
+                    balance = 3450.0,
+                    associatedPhone = "77889900",
+                    linkedBank = "Banpro",
+                    linkedAccountType = "DEBITO",
+                    linkedDebitSubType = "AHORRO",
+                    linkedAccountNumber = "402-998877-0",
+                    isActive = true
+                ),
+                FinancialAccountEntity(
+                    userId = demoUserId,
+                    toolType = "BILLETERA",
+                    bankName = "BAC",
+                    accountType = "BILLETERA",
+                    debitSubType = "",
+                    accountNumber = "77889900",
+                    balance = 1200.0,
+                    associatedPhone = "77889900",
+                    linkedBank = "BAC",
+                    linkedAccountType = "DEBITO",
+                    linkedDebitSubType = "AHORRO",
+                    linkedAccountNumber = "001-987654-3",
+                    isActive = true
+                )
+            )
+            elenaAccounts.forEach { accountDao.insertAccount(it) }
+
+            // Cuentas y billeteras con formato de Nicaragua para Carlos Mendoza (Tel: 88997766)
+            val adminAccounts = listOf(
+                FinancialAccountEntity(
+                    userId = adminId,
+                    toolType = "CUENTA",
+                    bankName = "Ficohsa",
+                    accountType = "DEBITO",
+                    debitSubType = "CORRIENTE",
+                    accountNumber = "501-887766-2",
+                    balance = 45000.0,
+                    isActive = true
+                ),
+                FinancialAccountEntity(
+                    userId = adminId,
+                    toolType = "CUENTA",
+                    bankName = "Avanz",
+                    accountType = "DEBITO",
+                    debitSubType = "AHORRO",
+                    accountNumber = "601-332211-8",
+                    balance = 22300.0,
+                    isActive = true
+                ),
+                FinancialAccountEntity(
+                    userId = adminId,
+                    toolType = "CUENTA",
+                    bankName = "BDF",
+                    accountType = "CREDITO",
+                    debitSubType = "",
+                    accountNumber = "701-445566-0",
+                    creditLimit = 50000.0,
+                    balance = 12000.0,
+                    isActive = true
+                ),
+                FinancialAccountEntity(
+                    userId = adminId,
+                    toolType = "BILLETERA",
+                    bankName = "Ficohsa",
+                    accountType = "BILLETERA",
+                    debitSubType = "",
+                    accountNumber = "88997766",
+                    balance = 5000.0,
+                    associatedPhone = "88997766",
+                    linkedBank = "Ficohsa",
+                    linkedAccountType = "DEBITO",
+                    linkedDebitSubType = "CORRIENTE",
+                    linkedAccountNumber = "501-887766-2",
+                    isActive = true
+                )
+            )
+            adminAccounts.forEach { accountDao.insertAccount(it) }
+
             val now = System.currentTimeMillis()
             val day = 86400000L
 
-            // Seed transactions for demo user
+            // Movimientos de demostración para Elena
             val demoTransactions = listOf(
                 TransactionEntity(userId = demoUserId, title = "Pago de Quincena", amount = 18500.0, type = "INCOME", category = "Salario", dateMillis = now - (day * 3), note = "Nómina mensual"),
                 TransactionEntity(userId = demoUserId, title = "Supermercado La Unión", amount = 2450.0, type = "EXPENSE", category = "Alimentación", dateMillis = now - (day * 2), note = "Compras para la quincena"),
@@ -129,17 +253,17 @@ abstract class AppDatabase : RoomDatabase() {
             )
             demoTransactions.forEach { transactionDao.insertTransaction(it) }
 
-            // Seed Monthly Budgets
+            // Presupuestos mensuales
             budgetDao.insertBudget(BudgetEntity(userId = demoUserId, category = "Alimentación", monthlyLimit = 5000.0, monthYear = "2026-09"))
             budgetDao.insertBudget(BudgetEntity(userId = demoUserId, category = "Transporte", monthlyLimit = 2000.0, monthYear = "2026-09"))
             budgetDao.insertBudget(BudgetEntity(userId = demoUserId, category = "Entretenimiento", monthlyLimit = 1500.0, monthYear = "2026-09"))
             budgetDao.insertBudget(BudgetEntity(userId = demoUserId, category = "Servicios Básicos", monthlyLimit = 2200.0, monthYear = "2026-09"))
 
-            // Seed Savings Goals
+            // Metas de ahorro
             goalDao.insertGoal(SavingsGoalEntity(userId = demoUserId, title = "Fondo de Emergencia", targetAmount = 30000.0, currentAmount = 14500.0, targetDateMillis = now + (day * 120), iconName = "shield"))
             goalDao.insertGoal(SavingsGoalEntity(userId = demoUserId, title = "Viaje de Vacaciones", targetAmount = 15000.0, currentAmount = 8200.0, targetDateMillis = now + (day * 90), iconName = "flight"))
 
-            // Seed Bill Reminders
+            // Recordatorios de facturas
             billDao.insertBill(BillReminderEntity(userId = demoUserId, title = "Recibo de Agua Potable", amount = 380.0, dueDateMillis = now + (day * 3), category = "Servicios Básicos", isPaid = false))
             billDao.insertBill(BillReminderEntity(userId = demoUserId, title = "Internet de Fibra Óptica", amount = 950.0, dueDateMillis = now + (day * 7), category = "Servicios Básicos", isPaid = false))
             billDao.insertBill(BillReminderEntity(userId = demoUserId, title = "Cuota Préstamo Personal", amount = 2500.0, dueDateMillis = now + (day * 15), category = "Otros Gastos", isPaid = false))

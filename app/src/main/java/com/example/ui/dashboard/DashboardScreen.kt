@@ -73,6 +73,7 @@ fun DashboardScreen(
     onNavigateToSavings: () -> Unit,
     onNavigateToBills: () -> Unit,
     onNavigateToAiAssistant: () -> Unit,
+    onNavigateToWallets: () -> Unit,
     onOpenAddTransaction: (type: String) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -149,7 +150,7 @@ fun DashboardScreen(
                 }
             }
 
-            // Sleek Hero Balance Card (bg-[#E3F2FD] with border-sky-100)
+            // Sleek Hero Balance Card (Navega a la interfaz de Billeteras y Cuentas)
             item {
                 Card(
                     shape = RoundedCornerShape(28.dp),
@@ -161,6 +162,7 @@ fun DashboardScreen(
                     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                     modifier = Modifier
                         .fillMaxWidth()
+                        .clickable { onNavigateToWallets() }
                         .testTag("hero_balance_card")
                 ) {
                     Column(modifier = Modifier.padding(22.dp)) {
@@ -169,13 +171,23 @@ fun DashboardScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "Balance Mensual",
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    color = Color(0xFF075985),
-                                    fontWeight = FontWeight.SemiBold
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "Balance Mensual",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        color = Color(0xFF075985),
+                                        fontWeight = FontWeight.SemiBold
+                                    )
                                 )
-                            )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "• Billeteras ➔",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        color = FinancePrimary,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                )
+                            }
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(10.dp))

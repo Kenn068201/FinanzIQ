@@ -38,7 +38,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -63,6 +62,7 @@ import com.example.ui.FinanceViewModel
 import com.example.ui.theme.FinanceBackground
 import com.example.ui.theme.FinancePrimary
 import com.example.ui.theme.FinanceSecondaryContainer
+import com.example.util.Localization
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -70,6 +70,7 @@ fun AiAssistantScreen(
     viewModel: FinanceViewModel,
     modifier: Modifier = Modifier
 ) {
+    val currentLang by viewModel.currentLanguage.collectAsState()
     val messages by viewModel.chatMessages.collectAsState()
     val isAiLoading by viewModel.isAiLoading.collectAsState()
 
@@ -83,9 +84,9 @@ fun AiAssistantScreen(
     }
 
     val samplePrompts = listOf(
-        "¿En qué gasté más este mes?",
-        "¿Cómo puedo ahorrar más?",
-        "¿Cuánto puedo gastar esta semana sin excederme?"
+        Localization.t("ai_prompt_1", currentLang),
+        Localization.t("ai_prompt_2", currentLang),
+        Localization.t("ai_prompt_3", currentLang)
     )
 
     Scaffold(
@@ -110,23 +111,25 @@ fun AiAssistantScreen(
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                text = "Asistente Financiero IA",
+                                text = Localization.t("ai_assistant_title", currentLang),
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF111827)
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                             )
                             Text(
-                                text = "Análisis inteligente y asesoría personalizada",
-                                style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF6B7280))
+                                text = Localization.t("ai_assistant_subtitle", currentLang),
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             )
                         }
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = FinanceBackground)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
             )
         },
-        containerColor = FinanceBackground,
+        containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier.fillMaxSize().imePadding()
     ) { innerPadding ->
         Column(
@@ -135,7 +138,7 @@ fun AiAssistantScreen(
                 .padding(innerPadding)
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            // Historial de chat
+            // Historial de mensajes
             LazyColumn(
                 state = listState,
                 modifier = Modifier
@@ -160,9 +163,9 @@ fun AiAssistantScreen(
                             )
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
-                                text = "Analizando tu situación financiera...",
+                                text = Localization.t("ai_analyzing", currentLang),
                                 style = MaterialTheme.typography.bodySmall.copy(
-                                    color = Color(0xFF6B7280),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontWeight = FontWeight.Medium
                                 )
                             )
@@ -173,11 +176,11 @@ fun AiAssistantScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Sugerencias rápidas para el prompt
+            // Preguntas sugeridas dinámicas según el idioma
             Text(
-                text = "Preguntas sugeridas:",
+                text = Localization.t("ai_prompt_suggestion_header", currentLang),
                 style = MaterialTheme.typography.labelSmall.copy(
-                    color = Color(0xFF6B7280),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Bold
                 )
             )
@@ -200,7 +203,7 @@ fun AiAssistantScreen(
                         },
                         colors = FilterChipDefaults.filterChipColors(
                             containerColor = FinanceSecondaryContainer.copy(alpha = 0.7f),
-                            labelColor = Color(0xFF003666)
+                            labelColor = FinancePrimary
                         )
                     )
                 }
@@ -208,7 +211,7 @@ fun AiAssistantScreen(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            // Formulario de entrada
+            // Campo de entrada de consulta
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -216,7 +219,9 @@ fun AiAssistantScreen(
                 OutlinedTextField(
                     value = inputPrompt,
                     onValueChange = { inputPrompt = it },
-                    placeholder = { Text("Escribe tu consulta financiera...") },
+                    placeholder = {
+                        Text(Localization.t("ai_input_placeholder", currentLang))
+                    },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                     keyboardActions = KeyboardActions(
@@ -230,7 +235,7 @@ fun AiAssistantScreen(
                     shape = RoundedCornerShape(24.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = FinancePrimary,
-                        unfocusedBorderColor = Color(0xFFD1D5DB)
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
                     ),
                     modifier = Modifier
                         .weight(1f)
@@ -254,7 +259,7 @@ fun AiAssistantScreen(
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.Send,
-                        contentDescription = "Enviar",
+                        contentDescription = Localization.t("ai_send", currentLang),
                         tint = Color.White,
                         modifier = Modifier.size(20.dp)
                     )
@@ -298,7 +303,7 @@ fun ChatBubbleItem(msg: ChatMessage) {
                 bottomEnd = if (isUser) 4.dp else 16.dp
             ),
             colors = CardDefaults.cardColors(
-                containerColor = if (isUser) FinancePrimary else Color.White
+                containerColor = if (isUser) FinancePrimary else MaterialTheme.colorScheme.surfaceVariant
             ),
             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
             modifier = Modifier.fillMaxWidth(if (isUser) 0.8f else 0.9f)
@@ -307,7 +312,7 @@ fun ChatBubbleItem(msg: ChatMessage) {
                 Text(
                     text = msg.text,
                     style = MaterialTheme.typography.bodyMedium.copy(
-                        color = if (isUser) Color.White else Color(0xFF111827),
+                        color = if (isUser) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
                         lineHeight = 20.sp
                     )
                 )
@@ -320,13 +325,13 @@ fun ChatBubbleItem(msg: ChatMessage) {
                 modifier = Modifier
                     .size(32.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFFE5E7EB)),
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.Person,
                     contentDescription = null,
-                    tint = Color(0xFF4B5563),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(18.dp)
                 )
             }

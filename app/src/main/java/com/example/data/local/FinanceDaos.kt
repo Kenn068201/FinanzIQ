@@ -136,3 +136,33 @@ interface CategoryDao {
     @Query("SELECT COUNT(*) FROM categories")
     suspend fun getCategoryCount(): Int
 }
+
+/**
+ * DAO para la gestión de cuentas bancarias y billeteras digitales.
+ * Proporciona consultas reactivas con Flow y operaciones de inserción y actualización
+ * para alternar el estado activo/deshabilitado de las herramientas financieras.
+ */
+@Dao
+interface FinancialAccountDao {
+    @Query("SELECT * FROM financial_accounts WHERE userId = :userId ORDER BY isActive DESC, id ASC")
+    fun getAccountsByUser(userId: Long): Flow<List<FinancialAccountEntity>>
+
+    @Query("SELECT * FROM financial_accounts WHERE userId = :userId")
+    suspend fun getAccountsListByUser(userId: Long): List<FinancialAccountEntity>
+
+    @Query("SELECT * FROM financial_accounts WHERE id = :id LIMIT 1")
+    suspend fun getAccountById(id: Long): FinancialAccountEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAccount(account: FinancialAccountEntity): Long
+
+    @Update
+    suspend fun updateAccount(account: FinancialAccountEntity)
+
+    @Delete
+    suspend fun deleteAccount(account: FinancialAccountEntity)
+
+    @Query("UPDATE financial_accounts SET isActive = :isActive WHERE id = :id")
+    suspend fun setAccountActiveStatus(id: Long, isActive: Boolean)
+}
+

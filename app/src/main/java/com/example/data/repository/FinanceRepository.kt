@@ -4,6 +4,7 @@ import com.example.data.local.AppDatabase
 import com.example.data.local.BillReminderEntity
 import com.example.data.local.BudgetEntity
 import com.example.data.local.CategoryEntity
+import com.example.data.local.FinancialAccountEntity
 import com.example.data.local.SavingsGoalEntity
 import com.example.data.local.TransactionEntity
 import com.example.data.local.UserEntity
@@ -38,6 +39,68 @@ class FinanceRepository(private val db: AppDatabase) {
     private val savingsGoalDao = db.savingsGoalDao()
     private val billDao = db.billReminderDao()
     private val categoryDao = db.categoryDao()
+    private val accountDao = db.financialAccountDao()
+
+    // --- Herramientas Financieras (Cuentas y Billeteras) ---
+    fun getFinancialAccounts(userId: Long): Flow<List<FinancialAccountEntity>> =
+        accountDao.getAccountsByUser(userId)
+
+    suspend fun getFinancialAccountsList(userId: Long): List<FinancialAccountEntity> =
+        accountDao.getAccountsListByUser(userId)
+
+    suspend fun addFinancialAccount(account: FinancialAccountEntity): Long =
+        accountDao.insertAccount(account)
+
+    suspend fun updateFinancialAccount(account: FinancialAccountEntity) =
+        accountDao.updateAccount(account)
+
+    suspend fun setFinancialAccountStatus(id: Long, isActive: Boolean) =
+        accountDao.setAccountActiveStatus(id, isActive)
+
+    suspend fun deleteFinancialAccount(account: FinancialAccountEntity) =
+        accountDao.deleteAccount(account)
+
+    /**
+     * Realiza una transferencia de fondos entre cuentas o billeteras del usuario.
+     * Si las herramientas pertenecen a bancos distintos, registra y descuenta la comisión interbancaria de C$ 80.
+     * Esta transferencia afecta únicamente el balance de cada herramienta sin alterar el total consolidado (salvo por la comisión).
+     */
+    suspend fun transferBetweenAccounts(
+        originAccount: FinancialAccountEntity,
+        destinationAccount: FinancialAccountEntity,
+        amount: Double,
+        commission: Double
+    ) {
+        val updatedOrigin = originAccount.copy(balance = originAccount.balance - (amount + commission))
+        val updatedDest = destinationAccount.copy(balance = destinationAccount.balance + amount)
+        accountDao.updateAccount(updatedOrigin)
+        accountDao.updateAccount(updatedDest)
+
+        // Registrar la transacción de comisión bancaria si aplica
+        if (commission > 0.0) {
+            transactionDao.insertTransaction(
+                TransactionEntity(
+                    userId = originAccount.userId,
+                    title = "Comisión Transferencia Interbancaria",
+                    amount = commission,
+                    type = "EXPENSE",
+                    category = "Comisiones y Servicios",
+                    dateMillis = System.currentTimeMillis(),
+                    note = "Comisión de C$ 80 por transferencia interbancaria de ${originAccount.bankName} a ${destinationAccount.bankName}"
+                )
+            )
+        }
+    }
+
+    suspend fun getAccountById(id: Long): FinancialAccountEntity? =
+        accountDao.getAccountById(id)
+
+    suspend fun updateAccountBalance(accountId: Long, newBalance: Double) {
+        val account = accountDao.getAccountById(accountId)
+        if (account != null) {
+            accountDao.updateAccount(account.copy(balance = newBalance))
+        }
+    }
 
     // --- Authentication & Users ---
     suspend fun getUserByEmail(email: String): UserEntity? = userDao.getUserByEmail(email.trim().lowercase(Locale.ROOT))
@@ -265,7 +328,9 @@ class FinanceRepository(private val db: AppDatabase) {
     suspend fun queryAiAssistant(
         userId: Long,
         question: String,
-        history: List<Pair<String, String>> = emptyList()
+        history: List<Pair<String, String>> = emptyList(),
+        isEnglish: Boolean = false,
+        currencySymbol: String = "C$"
     ): String {
         val user = userDao.getUserById(userId)
         val txs = transactionDao.getTransactionsList(userId)
@@ -273,18 +338,30 @@ class FinanceRepository(private val db: AppDatabase) {
         val summary = calculateSummary(txs, emptyList())
 
         val contextInfo = buildString {
-            append("Usuario: ${user?.firstName ?: "Cliente"} ${user?.lastName ?: ""}\n")
-            append("Ingresos Registrados: C$ ${String.format(Locale.US, "%.2f", summary.totalIncome)}\n")
-            append("Gastos Registrados: C$ ${String.format(Locale.US, "%.2f", summary.totalExpense)}\n")
-            append("Balance Actual: C$ ${String.format(Locale.US, "%.2f", summary.balance)}\n")
-            append("Proyección de gastos a fin de mes: C$ ${String.format(Locale.US, "%.2f", summary.projectedMonthEndExpense)}\n")
-            append("Transacciones Recientes:\n")
-            txs.take(8).forEach {
-                append("- ${it.type}: ${it.title} | ${it.category} | C$ ${it.amount}\n")
+            if (isEnglish) {
+                append("User: ${user?.firstName ?: "Customer"} ${user?.lastName ?: ""}\n")
+                append("Total Income: $currencySymbol ${String.format(Locale.US, "%.2f", summary.totalIncome)}\n")
+                append("Total Expenses: $currencySymbol ${String.format(Locale.US, "%.2f", summary.totalExpense)}\n")
+                append("Current Net Balance: $currencySymbol ${String.format(Locale.US, "%.2f", summary.balance)}\n")
+                append("Projected Month-End Expenses: $currencySymbol ${String.format(Locale.US, "%.2f", summary.projectedMonthEndExpense)}\n")
+                append("Recent Transactions:\n")
+                txs.take(8).forEach {
+                    append("- ${it.type}: ${it.title} | ${it.category} | $currencySymbol ${it.amount}\n")
+                }
+            } else {
+                append("Usuario: ${user?.firstName ?: "Cliente"} ${user?.lastName ?: ""}\n")
+                append("Ingresos Registrados: $currencySymbol ${String.format(Locale.US, "%.2f", summary.totalIncome)}\n")
+                append("Gastos Registrados: $currencySymbol ${String.format(Locale.US, "%.2f", summary.totalExpense)}\n")
+                append("Balance Actual: $currencySymbol ${String.format(Locale.US, "%.2f", summary.balance)}\n")
+                append("Proyección de gastos a fin de mes: $currencySymbol ${String.format(Locale.US, "%.2f", summary.projectedMonthEndExpense)}\n")
+                append("Transacciones Recientes:\n")
+                txs.take(8).forEach {
+                    append("- ${it.type}: ${it.title} | ${it.category} | $currencySymbol ${it.amount}\n")
+                }
             }
         }
 
-        return GeminiApiClient.askFinancialAssistant(contextInfo, question, history)
+        return GeminiApiClient.askFinancialAssistant(contextInfo, question, history, isEnglish, currencySymbol)
     }
 
     // Formatted report for export

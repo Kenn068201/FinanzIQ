@@ -1,6 +1,6 @@
 {
-  "name": "Finanzas Inteligentes",
-  "description": "Control de ingresos, gastos, presupuestos, metas de ahorro, recordatorios de pagos y asistente financiero con IA.",
+  "name": "FinanzIQ",
+  "description": "Control de ingresos, gastos, presupuestos, billeteras y cuentas bancarias, metas de ahorro y asistente financiero con IA.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

@@ -1,6 +1,7 @@
 package com.example.ui.auth
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -23,7 +24,6 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Email
@@ -58,7 +58,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -68,19 +70,23 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.R
 import com.example.ui.FinanceViewModel
 import com.example.ui.components.ErrorWarningBox
-import com.example.ui.theme.FinanceBackground
 import com.example.ui.theme.FinanceError
 import com.example.ui.theme.FinanceOnPrimary
 import com.example.ui.theme.FinancePrimary
-import com.example.ui.theme.FinanceSecondary
 import com.example.ui.theme.FinanceSecondaryContainer
 import com.example.ui.theme.FinanceSuccess
 import com.example.ui.theme.FinanceSuccessContainer
 import com.example.util.Localization
 import java.util.Locale
 
+/**
+ * Interfaz de Inicio de Sesión de FinanzIQ.
+ * Permite a los usuarios autenticarse mediante usuario o correo y contraseña,
+ * con control de bloqueo temporal por 3 intentos fallidos y selector de idioma y tema.
+ */
 @Composable
 fun LoginScreen(
     viewModel: FinanceViewModel,
@@ -115,7 +121,7 @@ fun LoginScreen(
                 .padding(horizontal = 24.dp, vertical = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Barra superior: Alternar tema (arriba a la izquierda) y selector de idioma (arriba a la derecha)
+            // Barra superior: Conmutador de tema claro/oscuro e idioma
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -123,7 +129,7 @@ fun LoginScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Alternar tema (claro / oscuro)
+                // Selector de modo oscuro / claro
                 Row(
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
@@ -149,7 +155,7 @@ fun LoginScreen(
                     )
                 }
 
-                // Selector de idioma (ES / EN)
+                // Selector de idioma (Español / English)
                 Row(
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
@@ -179,25 +185,27 @@ fun LoginScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(18.dp))
 
-            // Encabezado de marca con detalles en tonos pastel de cielo
+            // Logo oficial de FinanzIQ y encabezado de la marca
             Box(
                 modifier = Modifier
-                    .size(76.dp)
+                    .size(80.dp)
                     .clip(CircleShape)
                     .background(FinanceSecondaryContainer),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Default.AccountBalanceWallet,
-                    contentDescription = "Logo Finanzas",
-                    tint = FinancePrimary,
-                    modifier = Modifier.size(42.dp)
+                Image(
+                    painter = painterResource(id = R.drawable.finanziq_icon_1790139333989),
+                    contentDescription = "Logo FinanzIQ",
+                    modifier = Modifier
+                        .size(68.dp)
+                        .clip(CircleShape),
+                    contentScale = ContentScale.Crop
                 )
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             Text(
                 text = Localization.t("app_title", currentLang),
@@ -217,7 +225,7 @@ fun LoginScreen(
                 modifier = Modifier.padding(top = 4.dp, bottom = 18.dp)
             )
 
-            // Banner de bloqueo con contador regresivo en tiempo real (3 intentos fallidos → bloqueo de 5 minutos)
+            // Cuadro de bloqueo temporal con cuenta regresiva de 5 minutos por 3 fallos consecutivos
             if (isLockedOut) {
                 val mins = lockoutRemainingSeconds / 60
                 val secs = lockoutRemainingSeconds % 60
@@ -279,7 +287,7 @@ fun LoginScreen(
                     }
                 }
             } else if (failedAttempts > 0) {
-                // Recordatorio de intentos fallidos
+                // Aviso de intentos fallidos antes de bloquear la cuenta
                 Card(
                     shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF3C7)),
@@ -309,7 +317,7 @@ fun LoginScreen(
                 }
             }
 
-            // Cuadro de error de advertencia roja
+            // Cuadro rojo descriptivo de advertencia o errores de autenticación
             AnimatedVisibility(visible = authError != null && !isLockedOut) {
                 authError?.let { msg ->
                     Column {
@@ -322,7 +330,7 @@ fun LoginScreen(
                 }
             }
 
-            // Contenedor de tarjetas de campos de entrada
+            // Tarjeta principal del formulario de Inicio de Sesión
             Card(
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -343,7 +351,7 @@ fun LoginScreen(
                     )
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Campo de correo electrónico / nombre de usuario
+                    // Campo de entrada: Usuario o Correo electrónico
                     OutlinedTextField(
                         value = identifier,
                         enabled = !isLockedOut,
@@ -356,7 +364,7 @@ fun LoginScreen(
                         leadingIcon = {
                             Icon(
                                 imageVector = Icons.Default.Email,
-                                contentDescription = "Correo",
+                                contentDescription = "Email",
                                 tint = if (isLockedOut) MaterialTheme.colorScheme.outline else FinancePrimary
                             )
                         },
@@ -378,7 +386,7 @@ fun LoginScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Introducción de contraseña
+                    // Campo de entrada: Contraseña
                     OutlinedTextField(
                         value = password,
                         enabled = !isLockedOut,
@@ -391,7 +399,7 @@ fun LoginScreen(
                         leadingIcon = {
                             Icon(
                                 imageVector = Icons.Default.Lock,
-                                contentDescription = "Contraseña",
+                                contentDescription = "Password",
                                 tint = if (isLockedOut) MaterialTheme.colorScheme.outline else FinancePrimary
                             )
                         },
@@ -428,7 +436,7 @@ fun LoginScreen(
                             .testTag("login_password_input")
                     )
 
-                    // Botón «Olvidé mi contraseña»
+                    // Enlace de recuperación de contraseña
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.End
@@ -449,7 +457,7 @@ fun LoginScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Botón de envío principal de alto contraste
+                    // Botón principal de Iniciar Sesión
                     Button(
                         onClick = {
                             if (!isLockedOut) {
@@ -482,10 +490,10 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Tarjeta de botones de demostración de acceso rápido (Elena / Admin)
+            // Accesos rápidos de prueba (Elena y Carlos)
             Card(
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = FinanceSecondaryContainer.copy(alpha = 0.6f)),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
@@ -495,10 +503,10 @@ fun LoginScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "Acceso Rápido de Prueba",
+                        text = Localization.t("quick_access_title", currentLang),
                         style = MaterialTheme.typography.labelMedium.copy(
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF003666)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     )
                     Spacer(modifier = Modifier.height(8.dp))
@@ -523,10 +531,10 @@ fun LoginScreen(
                                 .testTag("demo_user_button")
                         ) {
                             Text(
-                                text = "👤 Elena (Usuario)",
+                                text = Localization.t("demo_user_btn", currentLang),
                                 style = MaterialTheme.typography.labelMedium.copy(
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF111827)
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                             )
                         }
@@ -548,10 +556,10 @@ fun LoginScreen(
                                 .testTag("demo_admin_button")
                         ) {
                             Text(
-                                text = "🛡️ Carlos (Admin)",
+                                text = Localization.t("demo_admin_btn", currentLang),
                                 style = MaterialTheme.typography.labelMedium.copy(
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF111827)
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                             )
                         }
@@ -561,7 +569,7 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Botón de redirección de registro
+            // Redirección a la interfaz de Registro de Usuario
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
@@ -590,7 +598,7 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(16.dp))
         }
 
-        // Cuadro de diálogo «Olvidé mi contraseña»
+        // Diálogo para recuperación de contraseña
         if (showForgotPasswordDialog) {
             ForgotPasswordDialog(
                 viewModel = viewModel,
@@ -600,20 +608,35 @@ fun LoginScreen(
     }
 }
 
+/**
+ * Diálogo modal para solicitar el restablecimiento de contraseña mediante correo.
+ */
 @Composable
 fun ForgotPasswordDialog(
     viewModel: FinanceViewModel,
     onDismiss: () -> Unit
 ) {
+    val currentLang by viewModel.currentLanguage.collectAsState()
     var emailInput by remember { mutableStateOf("") }
     var dialogError by remember { mutableStateOf<String?>(null) }
     var successNotice by remember { mutableStateOf<String?>(null) }
+
+    val dialogTitle = if (currentLang == com.example.util.AppLanguage.ENGLISH) "Reset Password" else "Recuperar Contraseña"
+    val dialogDesc = if (currentLang == com.example.util.AppLanguage.ENGLISH) {
+        "Enter the email address registered with your account to reset access."
+    } else {
+        "Ingresa el correo registrado con tu cuenta para restablecer el acceso."
+    }
+    val emailLabel = if (currentLang == com.example.util.AppLanguage.ENGLISH) "Email Address" else "Correo Electrónico"
+    val sendBtn = if (currentLang == com.example.util.AppLanguage.ENGLISH) "Send Link" else "Enviar Enlace"
+    val closeBtn = Localization.t("close", currentLang)
+    val invalidEmailMsg = if (currentLang == com.example.util.AppLanguage.ENGLISH) "Please enter a valid email address." else "Por favor ingresa un correo electrónico válido."
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                text = "Recuperar Contraseña",
+                text = dialogTitle,
                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
             )
         },
@@ -623,8 +646,8 @@ fun ForgotPasswordDialog(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(
-                    text = "Ingresa el correo registrado con tu cuenta para restablecer el acceso.",
-                    style = MaterialTheme.typography.bodyMedium.copy(color = Color(0xFF4B5563))
+                    text = dialogDesc,
+                    style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                 )
 
                 if (dialogError != null) {
@@ -665,8 +688,8 @@ fun ForgotPasswordDialog(
                         emailInput = it
                         dialogError = null
                     },
-                    label = { Text("Correo Electrónico") },
-                    placeholder = { Text("tu_correo@dominio.com") },
+                    label = { Text(emailLabel) },
+                    placeholder = { Text("your_email@domain.com") },
                     leadingIcon = {
                         Icon(imageVector = Icons.Default.Email, contentDescription = null, tint = FinancePrimary)
                     },
@@ -680,7 +703,7 @@ fun ForgotPasswordDialog(
             Button(
                 onClick = {
                     if (emailInput.isBlank() || !emailInput.contains("@")) {
-                        dialogError = "Por favor ingresa un correo electrónico válido."
+                        dialogError = invalidEmailMsg
                         return@Button
                     }
                     viewModel.requestPasswordReset(emailInput) { ok, msg ->
@@ -696,15 +719,15 @@ fun ForgotPasswordDialog(
                 colors = ButtonDefaults.buttonColors(containerColor = FinancePrimary),
                 modifier = Modifier.testTag("forgot_password_submit_button")
             ) {
-                Text("Enviar Enlace")
+                Text(sendBtn)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cerrar")
+                Text(closeBtn)
             }
         },
         shape = RoundedCornerShape(18.dp),
-        containerColor = Color.White
+        containerColor = MaterialTheme.colorScheme.surface
     )
 }

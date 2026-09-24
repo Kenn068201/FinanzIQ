@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "Finanzas Inteligentes"
+rootProject.name = "FinanzIQ"
 
 include(":app")
