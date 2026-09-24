@@ -14,7 +14,7 @@ data class UserEntity(
     val phonePrefix: String = "+505",
     val email: String,
     val passwordHash: String,
-    val role: String = "USER", // "USER" or "ADMIN"
+    val role: String = "USER", // "USER" o "ADMIN"
     val preferredCurrency: String = "C$ NIO",
     val createdAt: Long = System.currentTimeMillis()
 )
