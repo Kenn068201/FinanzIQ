@@ -149,7 +149,7 @@ fun AdminScreen(
             Spacer(modifier = Modifier.height(14.dp))
 
             if (selectedTab == 0) {
-                // Category Management
+                // Gestión de categorías
                 LazyColumn(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -229,7 +229,7 @@ fun AdminScreen(
                     item { Spacer(modifier = Modifier.height(72.dp)) }
                 }
             } else {
-                // User & Role Management
+                // Administración de usuarios y roles
                 LazyColumn(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
