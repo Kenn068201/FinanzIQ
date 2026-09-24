@@ -94,7 +94,7 @@ fun AnalyticsScreen(
     var selectedGroupFilter by remember { mutableStateOf("Todos") } // "Todos", "Gastos Fijos", "Gastos Variables", "Pago de Deudas"
     var selectedCategoryForSubDetail by remember { mutableStateOf<String?>(null) }
 
-    // Calculate income and expense based on period
+    // Calcular los ingresos y gastos según el período
     val now = Calendar.getInstance()
     val currentWeek = now.get(Calendar.WEEK_OF_YEAR)
     val currentMonth = now.get(Calendar.MONTH)
@@ -119,14 +119,14 @@ fun AnalyticsScreen(
     val incomeRatio = (periodIncome / totalVolume).toFloat().coerceIn(0f, 1f)
     val expenseRatio = (totalExpenseAmount / totalVolume).toFloat().coerceIn(0f, 1f)
 
-    // Lookup helper for category emojis
+    // Ayuda para buscar emojis de categorías
     val allExpenseCategories = CategoryDataHierarchy.fixedExpenseGroup.categories +
         CategoryDataHierarchy.variableExpenseGroup.categories +
         CategoryDataHierarchy.debtPaymentGroup.categories
     val categoryIconMap = allExpenseCategories.associate { it.nameEs to it.iconEmoji }
     val subcategoryIconMap = allExpenseCategories.flatMap { it.subcategories }.associate { it.nameEs to it.iconEmoji }
 
-    // Build hierarchical spending model
+    // Crear un modelo jerárquico de gastos
     val categorySpendings = remember(periodExpenses, selectedGroupFilter) {
         val groupedByCategory = periodExpenses.groupBy { it.category }
         groupedByCategory.map { (catName, txs) ->
@@ -184,7 +184,7 @@ fun AnalyticsScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Period selector
+            // Selector de período
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -205,7 +205,7 @@ fun AnalyticsScreen(
                 }
             }
 
-            // Income vs Expense Card
+            // Ficha de ingresos y gastos
             item {
                 Card(
                     shape = RoundedCornerShape(20.dp),
@@ -243,7 +243,7 @@ fun AnalyticsScreen(
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        // Stacked Horizontal Proportional Bar
+                        // Barra proporcional horizontal apilada
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -271,7 +271,7 @@ fun AnalyticsScreen(
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        // Stats Breakdown
+                        // Desglose de estadísticas
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
@@ -326,12 +326,12 @@ fun AnalyticsScreen(
                 }
             }
 
-            // VERTICAL NESTED BAR CHART SECTION
+            // SECCIÓN DE GRÁFICOS DE BARRAS ANIDADAS VERTICALES
             item {
                 SectionHeader(title = "Gráfico de Barras Verticales: Categorías y Subcategorías")
             }
 
-            // Group filter chips
+            // Chips de filtro agrupados
             item {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     val filterOptions = listOf("Todos", "Gastos Fijos", "Gastos Variables", "Pago de Deudas")
@@ -352,7 +352,7 @@ fun AnalyticsScreen(
                 }
             }
 
-            // Vertical Nested Bar Chart Card
+            // Tarjeta con gráfico de barras anidadas verticales
             item {
                 Card(
                     shape = RoundedCornerShape(20.dp),
@@ -403,7 +403,7 @@ fun AnalyticsScreen(
                                 )
                             }
                         } else {
-                            // Vertical Bars Container (scrollable if many categories)
+                            // Contenedor de barras verticales (desplazable si hay muchas categorías)
                             LazyRow(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -424,7 +424,7 @@ fun AnalyticsScreen(
                                                 selectedCategoryForSubDetail = if (isSelected) null else item.categoryName
                                             }
                                     ) {
-                                        // Amount label
+                                        // Etiqueta de cantidad
                                         Text(
                                             text = "${String.format(Locale.US, "%.0f", item.percentageOfTotal)}%",
                                             style = MaterialTheme.typography.labelSmall.copy(
@@ -436,7 +436,7 @@ fun AnalyticsScreen(
 
                                         Spacer(modifier = Modifier.height(4.dp))
 
-                                        // Vertical Bar with Nested Subcategory Segments
+                                        // Barra vertical con segmentos de subcategorías anidados
                                         Box(
                                             modifier = Modifier
                                                 .width(36.dp)
@@ -444,7 +444,7 @@ fun AnalyticsScreen(
                                                 .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp, bottomStart = 4.dp, bottomEnd = 4.dp))
                                                 .background(if (isSelected) FinancePrimary else Color(0xFF38BDF8))
                                         ) {
-                                            // If category has subcategories, stack nested visual indicators
+                                            // Si la categoría tiene subcategorías, apila los indicadores visuales anidados
                                             if (item.subcategories.isNotEmpty()) {
                                                 Column(
                                                     modifier = Modifier.fillMaxSize(),
@@ -470,7 +470,7 @@ fun AnalyticsScreen(
 
                                         Spacer(modifier = Modifier.height(6.dp))
 
-                                        // Category Emoji and Short Name
+                                        // Categoría: Emoji y nombre abreviado
                                         Text(
                                             text = item.icon,
                                             style = MaterialTheme.typography.titleMedium
@@ -491,7 +491,7 @@ fun AnalyticsScreen(
                             }
                         }
 
-                        // Selected Category Nested Subcategory Details Drawer
+                        // Categoría seleccionada. Subcategoría anidada. Cajón de detalles
                         selectedCategoryForSubDetail?.let { selectedName ->
                             val selectedCat = categorySpendings.firstOrNull { it.categoryName == selectedName }
                             if (selectedCat != null) {
@@ -531,7 +531,7 @@ fun AnalyticsScreen(
                                                 style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF64748B))
                                             )
                                         } else {
-                                            // Nested mini vertical bars for subcategories
+                                            // Mini barras verticales anidadas para las subcategorías
                                             LazyRow(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
@@ -589,7 +589,7 @@ fun AnalyticsScreen(
                 }
             }
 
-            // Detailed Category Spending Breakdown List
+            // Lista detallada del desglose de gastos por categoría
             item {
                 SectionHeader(title = "Detalle Completo de Gastos")
             }
@@ -673,7 +673,7 @@ fun AnalyticsScreen(
                                     .height(6.dp)
                             )
 
-                            // If expanded and has subcategories, display them
+                            // Si está expandido y tiene subcategorías, muéstralas
                             if (isExpanded && item.subcategories.isNotEmpty()) {
                                 Spacer(modifier = Modifier.height(12.dp))
                                 Column(
