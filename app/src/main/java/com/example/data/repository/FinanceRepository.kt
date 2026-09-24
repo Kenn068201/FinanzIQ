@@ -102,7 +102,7 @@ class FinanceRepository(private val db: AppDatabase) {
         }
     }
 
-    // --- Authentication & Users ---
+    // --- Autenticacion y Usuarios ---
     suspend fun getUserByEmail(email: String): UserEntity? = userDao.getUserByEmail(email.trim().lowercase(Locale.ROOT))
     suspend fun getUserByPhone(phone: String): UserEntity? = userDao.getUserByPhone(phone.trim())
     suspend fun getUserById(id: Long): UserEntity? = userDao.getUserById(id)
@@ -112,7 +112,7 @@ class FinanceRepository(private val db: AppDatabase) {
     suspend fun deleteUser(user: UserEntity) = userDao.deleteUser(user)
     suspend fun getUserCount(): Int = userDao.getUserCount()
 
-    // --- Transactions ---
+    // --- Transacciones ---
     fun getTransactionsByUser(userId: Long): Flow<List<TransactionEntity>> =
         transactionDao.getTransactionsByUser(userId)
 
@@ -131,7 +131,7 @@ class FinanceRepository(private val db: AppDatabase) {
     suspend fun deleteTransaction(id: Long) =
         transactionDao.deleteById(id)
 
-    // Automatic classification helper based on title or keywords
+    // Herramienta de clasificación automática basada en el título o las palabras clave
     fun autoClassifyCategory(title: String, type: String): String {
         val lower = title.lowercase(Locale.ROOT)
         if (type == "INCOME") {
@@ -156,7 +156,7 @@ class FinanceRepository(private val db: AppDatabase) {
         }
     }
 
-    // --- Budgets ---
+    // --- Presupuestos ---
     fun getBudgetsByUser(userId: Long, monthYear: String): Flow<List<BudgetEntity>> =
         budgetDao.getBudgetsByUserAndMonth(userId, monthYear)
 
@@ -169,7 +169,7 @@ class FinanceRepository(private val db: AppDatabase) {
     suspend fun deleteBudget(budget: BudgetEntity) =
         budgetDao.deleteBudget(budget)
 
-    // --- Savings Goals ---
+    // --- Metas de ahorro ---
     fun getSavingsGoals(userId: Long): Flow<List<SavingsGoalEntity>> =
         savingsGoalDao.getGoalsByUser(userId)
 
@@ -182,7 +182,7 @@ class FinanceRepository(private val db: AppDatabase) {
     suspend fun deleteSavingsGoal(goal: SavingsGoalEntity) =
         savingsGoalDao.deleteGoal(goal)
 
-    // --- Bill Reminders ---
+    // --- Recordatorios de facturas ---
     fun getBillReminders(userId: Long): Flow<List<BillReminderEntity>> =
         billDao.getBillsByUser(userId)
 
@@ -195,7 +195,7 @@ class FinanceRepository(private val db: AppDatabase) {
     suspend fun deleteBillReminder(bill: BillReminderEntity) =
         billDao.deleteBill(bill)
 
-    // --- Categories ---
+    // --- Categorias ---
     fun getCategories(): Flow<List<CategoryEntity>> =
         categoryDao.getAllCategories()
 
@@ -210,7 +210,7 @@ class FinanceRepository(private val db: AppDatabase) {
 
     suspend fun getCategoryCount(): Int = categoryDao.getCategoryCount()
 
-    // --- Intelligent Analytics & Calculations ---
+    // --- Análisis y cálculos inteligentes---
     fun calculateSummary(
         transactions: List<TransactionEntity>,
         budgets: List<BudgetEntity>
@@ -245,12 +245,12 @@ class FinanceRepository(private val db: AppDatabase) {
         val balance = totalIncome - totalExpense
         val savingsRate = if (totalIncome > 0) ((totalIncome - totalExpense) / totalIncome * 100).coerceIn(0.0, 100.0) else 0.0
 
-        // Prorated month-end spending prediction
+        // Predicción prorrateada del gasto a fin de mes
         val projectedMonthEndExpense = if (dayOfMonth > 0) {
             (currentMonthExpense / dayOfMonth) * daysInMonth
         } else currentMonthExpense
 
-        // Budget Alerts & Threshold Warnings
+        //Alertas presupuestarias y avisos 
         val alerts = mutableListOf<String>()
         for (b in budgets) {
             val spent = expensesByCategory[b.category] ?: 0.0
@@ -262,7 +262,7 @@ class FinanceRepository(private val db: AppDatabase) {
             }
         }
 
-        // Automated Recommendations & Insights
+        // Recomendaciones e información automatizadas
         val insights = mutableListOf<String>()
         val foodExpense = expensesByCategory["Alimentación"] ?: 0.0
         val transportExpense = expensesByCategory["Transporte"] ?: 0.0
@@ -324,7 +324,7 @@ class FinanceRepository(private val db: AppDatabase) {
         }.sortedByDescending { it.totalAmount }
     }
 
-    // AI Assistant prompt generator
+    // Generador de prompts para asistentes de IA
     suspend fun queryAiAssistant(
         userId: Long,
         question: String,
@@ -364,7 +364,7 @@ class FinanceRepository(private val db: AppDatabase) {
         return GeminiApiClient.askFinancialAssistant(contextInfo, question, history, isEnglish, currencySymbol)
     }
 
-    // Formatted report for export
+    // Informe formateado para exportar
     fun generateExportReport(transactions: List<TransactionEntity>, userName: String): String {
         val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
         return buildString {
