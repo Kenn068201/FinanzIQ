@@ -135,7 +135,7 @@ fun AiAssistantScreen(
                 .padding(innerPadding)
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            // Chat history stream
+            // Historial de chat
             LazyColumn(
                 state = listState,
                 modifier = Modifier
@@ -173,7 +173,7 @@ fun AiAssistantScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Quick Prompt Suggestions
+            // Sugerencias rápidas para el prompt
             Text(
                 text = "Preguntas sugeridas:",
                 style = MaterialTheme.typography.labelSmall.copy(
@@ -208,7 +208,7 @@ fun AiAssistantScreen(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            // Input Row
+            // Formulario de entrada
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
