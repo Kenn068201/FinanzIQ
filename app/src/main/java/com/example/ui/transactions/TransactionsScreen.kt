@@ -112,13 +112,20 @@ fun TransactionsScreen(
     val selectedType by viewModel.selectedTypeFilter.collectAsState()
     val categories by viewModel.categories.collectAsState()
     val financialAccounts by viewModel.financialAccounts.collectAsState()
+    val allTransactions by viewModel.allTransactions.collectAsState()
+    val filteredList by viewModel.filteredTransactions.collectAsState()
+
+    // Categorías dinámicas disponibles: combina las categorías de la base de datos con las que el usuario ha registrado
+    val availableCategoryNames = remember(allTransactions, categories) {
+        val fromTxs = allTransactions.map { it.category }.filter { it.isNotBlank() }
+        val fromDb = categories.map { it.name }.filter { it.isNotBlank() }
+        (fromTxs + fromDb).distinct().sorted()
+    }
 
     var showAddDialog by remember { mutableStateOf(false) }
     var dialogInitialType by remember { mutableStateOf("EXPENSE") }
     var showExportDialog by remember { mutableStateOf(false) }
     var showTransferDialog by remember { mutableStateOf(false) }
-
-    val filteredList = viewModel.getFilteredTransactions()
 
     Scaffold(
         topBar = {
@@ -249,10 +256,16 @@ fun TransactionsScreen(
                         )
                     )
                 }
-                items(categories.map { it.name }.distinct()) { catName ->
+                items(availableCategoryNames) { catName ->
                     FilterChip(
                         selected = selectedCat == catName,
-                        onClick = { viewModel.setCategoryFilter(catName) },
+                        onClick = {
+                            if (selectedCat == catName) {
+                                viewModel.setCategoryFilter("Todas")
+                            } else {
+                                viewModel.setCategoryFilter(catName)
+                            }
+                        },
                         label = { Text(catName) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = FinanceSecondaryContainer,
@@ -598,7 +611,7 @@ fun AddTransactionDialog(
     categories: List<String>,
     accounts: List<FinancialAccountEntity> = emptyList(),
     currencySymbol: String = "C$",
-    lang: AppLanguage = AppLanguage.ES,
+    lang: AppLanguage = AppLanguage.SPANISH,
     onAutoClassify: (String, String) -> String,
     onDismiss: () -> Unit,
     onConfirmMovement: (
@@ -757,7 +770,7 @@ fun AddTransactionDialog(
                                 FilterChip(
                                     selected = selectedPassiveIndex == index,
                                     onClick = { selectedPassiveIndex = index },
-                                    label = { Text("${cat.iconEmoji} ${if (lang == AppLanguage.EN) cat.titleEn else cat.titleEs}") },
+                                    label = { Text("${cat.iconEmoji} ${if (lang == AppLanguage.ENGLISH) cat.titleEn else cat.titleEs}") },
                                     modifier = Modifier.weight(1f)
                                 )
                             }
@@ -782,12 +795,12 @@ fun AddTransactionDialog(
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Column {
                                     Text(
-                                        text = "${selectedPassiveCategory.iconEmoji} ¿Qué es ${if (lang == AppLanguage.EN) selectedPassiveCategory.titleEn else selectedPassiveCategory.titleEs}?",
+                                        text = "${selectedPassiveCategory.iconEmoji} ¿Qué es ${if (lang == AppLanguage.ENGLISH) selectedPassiveCategory.titleEn else selectedPassiveCategory.titleEs}?",
                                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold, color = Color(0xFF004C73))
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
-                                        text = if (lang == AppLanguage.EN) selectedPassiveCategory.explanationEn else selectedPassiveCategory.explanationEs,
+                                        text = if (lang == AppLanguage.ENGLISH) selectedPassiveCategory.explanationEn else selectedPassiveCategory.explanationEs,
                                         style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF1F2937), lineHeight = 18.sp)
                                     )
                                 }
@@ -831,7 +844,7 @@ fun AddTransactionDialog(
                                 FilterChip(
                                     selected = selectedActiveIndex == index,
                                     onClick = { selectedActiveIndex = index },
-                                    label = { Text("${cat.iconEmoji} ${if (lang == AppLanguage.EN) cat.nameEn else cat.nameEs}") }
+                                    label = { Text("${cat.iconEmoji} ${if (lang == AppLanguage.ENGLISH) cat.nameEn else cat.nameEs}") }
                                 )
                             }
                         }
@@ -844,20 +857,21 @@ fun AddTransactionDialog(
                     )
                     if (activeAccounts.isEmpty()) {
                         Text(
-                            text = if (lang == AppLanguage.ES) "No hay herramientas financieras registradas. Se acreditará a la cuenta general." else "No registered financial tools. Will credit general balance.",
+                            text = if (lang == AppLanguage.SPANISH) "No hay herramientas financieras registradas. Se acreditará a la cuenta general." else "No registered financial tools. Will credit general balance.",
                             style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                         )
                     } else {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             items(activeAccounts) { acc ->
                                 val isSelected = selectedAccountId == acc.id
+                                val accountLabel = if (acc.toolType == "BILLETERA") "Billetera" else "${acc.accountType} (${acc.debitSubType})"
                                 FilterChip(
                                     selected = isSelected,
                                     onClick = {
                                         selectedAccountId = acc.id
                                         errorMessage = null
                                     },
-                                    label = { Text("${acc.name} (${acc.bankName}) • $currencySymbol ${String.format(Locale.US, "%,.2f", acc.balance)}") },
+                                    label = { Text("$accountLabel (${acc.bankName}) • $currencySymbol ${String.format(Locale.US, "%,.2f", acc.balance)}") },
                                     colors = FilterChipDefaults.filterChipColors(
                                         selectedContainerColor = FinanceSuccessContainer,
                                         selectedLabelColor = FinanceSuccess
@@ -922,7 +936,7 @@ fun AddTransactionDialog(
                                     selectedCategoryIndex = idx
                                     selectedSubcategoryIndex = 0
                                 },
-                                label = { Text("${item.iconEmoji} ${if (lang == AppLanguage.EN) item.nameEn else item.nameEs}") }
+                                label = { Text("${item.iconEmoji} ${if (lang == AppLanguage.ENGLISH) item.nameEn else item.nameEs}") }
                             )
                         }
                     }
@@ -941,10 +955,10 @@ fun AddTransactionDialog(
                                     onClick = {
                                         selectedSubcategoryIndex = subIdx
                                         if (title.isBlank()) {
-                                            title = if (lang == AppLanguage.EN) sub.nameEn else sub.nameEs
+                                            title = if (lang == AppLanguage.ENGLISH) sub.nameEn else sub.nameEs
                                         }
                                     },
-                                    label = { Text("${sub.iconEmoji} ${if (lang == AppLanguage.EN) sub.nameEn else sub.nameEs}") }
+                                    label = { Text("${sub.iconEmoji} ${if (lang == AppLanguage.ENGLISH) sub.nameEn else sub.nameEs}") }
                                 )
                             }
                         }
@@ -962,7 +976,7 @@ fun AddTransactionDialog(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
-                                text = if (lang == AppLanguage.ES) "⚠️ No tienes billeteras o cuentas activas vinculadas. Agrega una desde la sección de Billeteras." else "⚠️ You have no active linked wallets or accounts. Add one from the Wallets section.",
+                                text = if (lang == AppLanguage.SPANISH) "⚠️ No tienes billeteras o cuentas activas vinculadas. Agrega una desde la sección de Billeteras." else "⚠️ You have no active linked wallets or accounts. Add one from the Wallets section.",
                                 style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF92400E)),
                                 modifier = Modifier.padding(10.dp)
                             )
@@ -971,13 +985,14 @@ fun AddTransactionDialog(
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             items(activeAccounts) { acc ->
                                 val isSelected = selectedAccountId == acc.id
+                                val accountLabel = if (acc.toolType == "BILLETERA") "Billetera" else "${acc.accountType} (${acc.debitSubType})"
                                 FilterChip(
                                     selected = isSelected,
                                     onClick = {
                                         selectedAccountId = acc.id
                                         errorMessage = null
                                     },
-                                    label = { Text("${acc.name} (${acc.bankName}) • $currencySymbol ${String.format(Locale.US, "%,.2f", acc.balance)}") },
+                                    label = { Text("$accountLabel (${acc.bankName}) • $currencySymbol ${String.format(Locale.US, "%,.2f", acc.balance)}") },
                                     colors = FilterChipDefaults.filterChipColors(
                                         selectedContainerColor = FinanceSecondaryContainer,
                                         selectedLabelColor = FinancePrimary
@@ -1037,12 +1052,12 @@ fun AddTransactionDialog(
                     val trimmedTitle = title.trim().ifBlank {
                         if (type == "INCOME") {
                             if (incomeSubType == "PASSIVE") {
-                                if (lang == AppLanguage.EN) selectedPassiveCategory.titleEn else selectedPassiveCategory.titleEs
+                                if (lang == AppLanguage.ENGLISH) selectedPassiveCategory.titleEn else selectedPassiveCategory.titleEs
                             } else {
-                                if (lang == AppLanguage.EN) activeCategories[selectedActiveIndex].nameEn else activeCategories[selectedActiveIndex].nameEs
+                                if (lang == AppLanguage.ENGLISH) activeCategories[selectedActiveIndex].nameEn else activeCategories[selectedActiveIndex].nameEs
                             }
                         } else {
-                            if (lang == AppLanguage.EN) {
+                            if (lang == AppLanguage.ENGLISH) {
                                 selectedSubcategoryItem?.nameEn ?: selectedCategoryItem.nameEn
                             } else {
                                 selectedSubcategoryItem?.nameEs ?: selectedCategoryItem.nameEs
@@ -1060,6 +1075,9 @@ fun AddTransactionDialog(
                     }
 
                     val selectedAcc = activeAccounts.firstOrNull { it.id == selectedAccountId }
+                    val selectedAccDisplayName = selectedAcc?.let {
+                        if (it.toolType == "BILLETERA") "Billetera (${it.bankName})" else "${it.accountType} (${it.bankName})"
+                    } ?: "Cuenta"
 
                     // Validación estricta de saldo suficiente en la billetera/cuenta de origen para gastos
                     if (type == "EXPENSE") {
@@ -1072,7 +1090,7 @@ fun AddTransactionDialog(
                             val formattedAmt = "$currencySymbol ${String.format(Locale.US, "%,.2f", amount)}"
                             errorMessage = String.format(
                                 Localization.t("error_expense_insufficient_funds", lang),
-                                selectedAcc.name,
+                                selectedAccDisplayName,
                                 formattedBal,
                                 formattedAmt
                             )
@@ -1092,14 +1110,14 @@ fun AddTransactionDialog(
                             finalGroup = "Ingresos Pasivos"
                             finalCategory = selectedPassiveCategory.titleEs
                             finalSubCategory = ""
-                            finalDestination = selectedAcc?.let { "${it.name} (${it.bankName})" } ?: "Ingreso General"
+                            finalDestination = selectedAcc?.let { "${if (it.toolType == "BILLETERA") "Billetera" else it.accountType} (${it.bankName})" } ?: "Ingreso General"
                             finalFrequency = passiveFrequency
                             finalPayoutDate = payoutDate.trim()
                         } else {
                             finalGroup = "Ingresos Activos"
                             finalCategory = activeCategories[selectedActiveIndex].nameEs
                             finalSubCategory = ""
-                            finalDestination = selectedAcc?.let { "${it.name} (${it.bankName})" } ?: "Ingreso General"
+                            finalDestination = selectedAcc?.let { "${if (it.toolType == "BILLETERA") "Billetera" else it.accountType} (${it.bankName})" } ?: "Ingreso General"
                             finalFrequency = ""
                             finalPayoutDate = ""
                         }
@@ -1112,7 +1130,7 @@ fun AddTransactionDialog(
                         }
                         finalCategory = selectedCategoryItem.nameEs
                         finalSubCategory = selectedSubcategoryItem?.nameEs ?: ""
-                        finalDestination = selectedAcc?.let { "${it.name} (${it.bankName})" } ?: "Gasto General"
+                        finalDestination = selectedAcc?.let { "${if (it.toolType == "BILLETERA") "Billetera" else it.accountType} (${it.bankName})" } ?: "Gasto General"
                         finalFrequency = ""
                         finalPayoutDate = ""
                     }

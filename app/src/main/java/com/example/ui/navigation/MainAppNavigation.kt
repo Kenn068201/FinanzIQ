@@ -128,6 +128,8 @@ fun AuthenticatedAppScaffold(
 ) {
     val currentUser by viewModel.currentUser.collectAsState()
     val categories by viewModel.categories.collectAsState()
+    val financialAccounts by viewModel.financialAccounts.collectAsState()
+    val selectedCurrency by viewModel.selectedCurrency.collectAsState()
     val lang by viewModel.currentLanguage.collectAsState()
     val navController = rememberNavController()
     var currentRoute by remember { mutableStateOf(Screen.Dashboard.route) }
@@ -388,9 +390,12 @@ fun AuthenticatedAppScaffold(
             AddTransactionDialog(
                 initialType = quickAddType,
                 categories = categories.map { it.name }.distinct(),
+                accounts = financialAccounts,
+                currencySymbol = selectedCurrency.symbol,
+                lang = lang,
                 onAutoClassify = { title, type -> viewModel.autoSuggestCategory(title, type) },
                 onDismiss = { showQuickAddDialog = false },
-                onConfirmMovement = { title, amount, type, incomeSubType, frequency, payoutDate, destination, categoryGroup, category, subCategory, date, note ->
+                onConfirmMovement = { title, amount, type, incomeSubType, frequency, payoutDate, destination, categoryGroup, category, subCategory, date, note, accountId ->
                     viewModel.addMovement(
                         title = title,
                         amount = amount,
@@ -403,7 +408,8 @@ fun AuthenticatedAppScaffold(
                         category = category,
                         subCategory = subCategory,
                         dateMillis = date,
-                        note = note
+                        note = note,
+                        accountId = accountId
                     )
                     showQuickAddDialog = false
                 }

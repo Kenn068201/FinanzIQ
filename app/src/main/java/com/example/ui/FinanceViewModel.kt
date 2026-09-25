@@ -24,9 +24,12 @@ import com.example.util.Validators
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -124,11 +127,30 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     private val _selectedCategoryFilter = MutableStateFlow("Todas")
     val selectedCategoryFilter: StateFlow<String> = _selectedCategoryFilter.asStateFlow()
 
-    private val _selectedPeriodFilter = MutableStateFlow("Mes") // "Todos", "Semana", "Mes", "Año"
+    private val _selectedPeriodFilter = MutableStateFlow("Todos") // "Todos", "Semana", "Mes", "Año"
     val selectedPeriodFilter: StateFlow<String> = _selectedPeriodFilter.asStateFlow()
 
     private val _selectedTypeFilter = MutableStateFlow("TODOS") // "TODOS", "INCOME", "EXPENSE"
     val selectedTypeFilter: StateFlow<String> = _selectedTypeFilter.asStateFlow()
+
+    /**
+     * Flujo de estado reactivo para las transacciones filtradas.
+     * Se recalcula y emite en tiempo real ante cualquier cambio en la lista de transacciones
+     * o en los criterios de filtro (búsqueda, categoría, período y tipo de movimiento).
+     */
+    val filteredTransactions: StateFlow<List<TransactionEntity>> = combine(
+        _allTransactions,
+        _searchQuery,
+        _selectedCategoryFilter,
+        _selectedPeriodFilter,
+        _selectedTypeFilter
+    ) { txs, query, cat, period, type ->
+        filterTransactionsList(txs, query, cat, period, type)
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        emptyList()
+    )
 
     // --- Budgets ---
     private val _budgets = MutableStateFlow<List<BudgetEntity>>(emptyList())
@@ -709,13 +731,26 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    /**
+     * Cierra la sesión activa del usuario actual.
+     * Limpia los datos de sesión y reinicia los filtros temporales de búsqueda/listas,
+     * pero preserva intactas las preferencias globales de Idioma y Modo Oscuro/Claro.
+     */
     fun logout() {
         _currentUser.value = null
         _allTransactions.value = emptyList()
         _budgets.value = emptyList()
         _savingsGoals.value = emptyList()
         _bills.value = emptyList()
+        _financialAccounts.value = emptyList()
         _authError.value = null
+
+        // Reiniciar filtros temporales a sus valores por defecto en tiempo real
+        _searchQuery.value = ""
+        _selectedCategoryFilter.value = "Todas"
+        _selectedPeriodFilter.value = "Todos"
+        _selectedTypeFilter.value = "TODOS"
+        // Nota: _currentLanguage y _isDarkMode se mantienen intactos tal como lo requiere el sistema
     }
 
     fun clearAuthError() {
@@ -777,32 +812,65 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         _selectedTypeFilter.value = type
     }
 
+    /**
+     * Retorna la lista filtrada de forma síncrona evaluando la lógica unificada de filtrado.
+     */
     fun getFilteredTransactions(): List<TransactionEntity> {
-        val query = _searchQuery.value.trim().lowercase()
-        val cat = _selectedCategoryFilter.value
-        val period = _selectedPeriodFilter.value
-        val type = _selectedTypeFilter.value
+        return filterTransactionsList(
+            _allTransactions.value,
+            _searchQuery.value,
+            _selectedCategoryFilter.value,
+            _selectedPeriodFilter.value,
+            _selectedTypeFilter.value
+        )
+    }
 
+    /**
+     * Lógica centralizada y dinámica de filtrado en tiempo real.
+     * Permite coincidencia flexible de texto, categorías (incluyendo subcategorías y grupos),
+     * tipos de movimiento y períodos cronológicos.
+     */
+    private fun filterTransactionsList(
+        transactions: List<TransactionEntity>,
+        query: String,
+        cat: String,
+        period: String,
+        type: String
+    ): List<TransactionEntity> {
+        val q = query.trim().lowercase()
         val now = Calendar.getInstance()
         val currentWeek = now.get(Calendar.WEEK_OF_YEAR)
         val currentMonth = now.get(Calendar.MONTH)
         val currentYear = now.get(Calendar.YEAR)
 
-        return _allTransactions.value.filter { tx ->
-            val matchesQuery = query.isEmpty() ||
-                    tx.title.lowercase().contains(query) ||
-                    tx.category.lowercase().contains(query) ||
-                    tx.note.lowercase().contains(query)
+        return transactions.filter { tx ->
+            // Filtro por texto de búsqueda (búsqueda en concepto, categoría, grupo, subcategoría, destino y notas)
+            val matchesQuery = q.isEmpty() ||
+                    tx.title.lowercase().contains(q) ||
+                    tx.category.lowercase().contains(q) ||
+                    tx.categoryGroup.lowercase().contains(q) ||
+                    tx.subCategory.lowercase().contains(q) ||
+                    tx.destination.lowercase().contains(q) ||
+                    tx.note.lowercase().contains(q)
 
-            val matchesCat = (cat == "Todas") || tx.category.equals(cat, ignoreCase = true)
-            val matchesType = (type == "TODOS") || tx.type == type
+            // Filtro por categoría seleccionada
+            val matchesCat = (cat == "Todas" || cat == "All" || cat.isBlank()) ||
+                    tx.category.equals(cat, ignoreCase = true) ||
+                    tx.category.contains(cat, ignoreCase = true) ||
+                    cat.contains(tx.category, ignoreCase = true) ||
+                    tx.categoryGroup.equals(cat, ignoreCase = true) ||
+                    tx.subCategory.equals(cat, ignoreCase = true)
 
+            // Filtro por tipo de movimiento (TODOS, INCOME, EXPENSE)
+            val matchesType = (type == "TODOS" || type == "ALL") || tx.type.equals(type, ignoreCase = true)
+
+            // Filtro por período de tiempo (Semana, Mes, Año, Todos)
             val txCal = Calendar.getInstance().apply { timeInMillis = tx.dateMillis }
             val matchesPeriod = when (period) {
-                "Semana" -> txCal.get(Calendar.WEEK_OF_YEAR) == currentWeek && txCal.get(Calendar.YEAR) == currentYear
-                "Mes" -> txCal.get(Calendar.MONTH) == currentMonth && txCal.get(Calendar.YEAR) == currentYear
-                "Año" -> txCal.get(Calendar.YEAR) == currentYear
-                else -> true
+                "Semana", "Week" -> txCal.get(Calendar.WEEK_OF_YEAR) == currentWeek && txCal.get(Calendar.YEAR) == currentYear
+                "Mes", "Month" -> txCal.get(Calendar.MONTH) == currentMonth && txCal.get(Calendar.YEAR) == currentYear
+                "Año", "Year" -> txCal.get(Calendar.YEAR) == currentYear
+                else -> true // "Todos", "All", etc.
             }
 
             matchesQuery && matchesCat && matchesType && matchesPeriod
