@@ -66,6 +66,8 @@ Muchas personas experimentan dificultades para saber a dónde se va su dinero a 
 
 ---
 
+
+
 ## 📂 8. Estructura del Proyecto (Carpetas y Archivos)
 
 ```text
