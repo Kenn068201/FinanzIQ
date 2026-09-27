@@ -5,6 +5,8 @@
 ## 📌 1. Nombre del Proyecto
 **FinanzIQ**
 
+
+
 ---
 
 ## 📖 2. Descripción Breve del Proyecto
