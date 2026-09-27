@@ -9,6 +9,7 @@ Estimación: 3 puntos de historia
 
 Redacción estándar
 
+
 Como: Usuario final de FinanzIQ
 
 Quiero: crear una cuenta en la aplicación ingresando mis datos personales (nombre, correo y contraseña)
