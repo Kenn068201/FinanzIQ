@@ -1,0 +1,8 @@
+{
+  "name": "FinanzIQ",
+  "description": "Asistente Financiero Inteligente y Empático: control de ingresos, gastos, presupuestos, simulador de ahorros, metas y gestión de billeteras.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
