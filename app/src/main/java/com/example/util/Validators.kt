@@ -78,4 +78,22 @@ object Validators {
         }
         return true to null
     }
+
+    /**
+     * Normaliza y extrae la entidad bancaria principal a partir del nombre comercial
+     * de una cuenta o proveedor de billetera (ej. Banpro, BAC, LAFISE, BDF, Ficohsa, Avanz).
+     * Garantiza que una billetera solo pueda vincularse a una cuenta del mismo banco.
+     */
+    fun normalizeBankBrand(name: String): String {
+        val upper = name.uppercase(java.util.Locale.ROOT)
+        return when {
+            upper.contains("BANPRO") -> "BANPRO"
+            upper.contains("BAC") || upper.contains("KASH") -> "BAC"
+            upper.contains("LAFISE") -> "LAFISE"
+            upper.contains("BDF") -> "BDF"
+            upper.contains("FICOHSA") -> "FICOHSA"
+            upper.contains("AVANZ") -> "AVANZ"
+            else -> upper.trim()
+        }
+    }
 }

@@ -74,6 +74,7 @@ import com.example.ui.theme.FinancePrimary
 import com.example.ui.theme.FinanceSecondaryContainer
 import com.example.ui.theme.FinanceSuccess
 import com.example.ui.theme.FinanceWarning
+import com.example.util.Localization
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -82,21 +83,30 @@ fun BudgetsScreen(
     viewModel: FinanceViewModel,
     modifier: Modifier = Modifier
 ) {
+    val lang by viewModel.currentLanguage.collectAsState()
     val budgets by viewModel.budgets.collectAsState()
     val transactions by viewModel.allTransactions.collectAsState()
 
     var showAddDialog by remember { mutableStateOf(false) }
 
-    // Calculate spent per category this month
-    val expensesByCategory = transactions
-        .filter { it.type == "EXPENSE" }
-        .groupBy { it.category }
-        .mapValues { entry -> entry.value.sumOf { it.amount } }
+    // Cálculo dinámico y acumulativo del gasto para cada presupuesto según la categoría correspondiente
+    fun calculateSpentForCategory(budgetCategory: String): Double {
+        return transactions.filter { tx ->
+            tx.type == "EXPENSE" && viewModel.doesTransactionMatchBudget(tx.category, tx.subCategory, budgetCategory)
+        }.sumOf { it.amount }
+    }
 
     val totalBudgetLimit = budgets.sumOf { it.monthlyLimit }
-    val totalSpent = expensesByCategory.values.sum()
+    val totalSpent = budgets.sumOf { calculateSpentForCategory(it.category) }
     val totalProgress = if (totalBudgetLimit > 0) (totalSpent / totalBudgetLimit).toFloat().coerceIn(0f, 1.2f) else 0f
     val totalPercentage = if (totalBudgetLimit > 0) (totalSpent / totalBudgetLimit) * 100 else 0.0
+
+    // Detectar presupuestos que hayan alcanzado el 80% o superior para alertar al usuario
+    val budgetsWithWarnings = budgets.mapNotNull { b ->
+        val sp = calculateSpentForCategory(b.category)
+        val pct = if (b.monthlyLimit > 0) (sp / b.monthlyLimit) * 100 else 0.0
+        if (pct >= 80.0) Triple(b, sp, pct) else null
+    }
 
     Scaffold(
         topBar = {
@@ -162,6 +172,54 @@ fun BudgetsScreen(
                             text = "Establece metas de gasto por categoría. Te avisaremos cuando alcances el 80% o sobrepases tu límite establecido.",
                             style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF4B5563))
                         )
+                    }
+                }
+            }
+
+            // Alerta destacada para presupuestos con 80% o superior
+            if (budgetsWithWarnings.isNotEmpty()) {
+                item {
+                    Card(
+                        shape = RoundedCornerShape(18.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF3C7)),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFDE68A)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("budget_warning_banner")
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Warning,
+                                    contentDescription = null,
+                                    tint = Color(0xFFD97706),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = "Alerta de Límite Presupuestario (80%+)",
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF92400E)
+                                    )
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            budgetsWithWarnings.forEach { (b, sp, pct) ->
+                                val remaining = (b.monthlyLimit - sp).coerceAtLeast(0.0)
+                                Text(
+                                    text = if (pct >= 100.0)
+                                        "• ${b.category}: ¡Límite superado! Has consumido el ${String.format(Locale.US, "%.0f", pct)}% de tu presupuesto (${formatCordobas(sp)} / ${formatCordobas(b.monthlyLimit)})."
+                                    else
+                                        "• ${b.category}: Estás cerca de sobrepasar tu límite establecido (${String.format(Locale.US, "%.0f", pct)}% consumido. Te quedan ${formatCordobas(remaining)}).",
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        color = Color(0xFF78350F),
+                                        fontWeight = FontWeight.SemiBold
+                                    ),
+                                    modifier = Modifier.padding(vertical = 2.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -305,7 +363,7 @@ fun BudgetsScreen(
                 }
             } else {
                 items(budgets) { budget ->
-                    val spent = expensesByCategory[budget.category] ?: 0.0
+                    val spent = calculateSpentForCategory(budget.category)
                     BudgetProgressCard(
                         budget = budget,
                         spent = spent,
@@ -319,6 +377,7 @@ fun BudgetsScreen(
 
         if (showAddDialog) {
             AddBudgetDialog(
+                lang = lang,
                 onDismiss = { showAddDialog = false },
                 onConfirm = { cat, limit ->
                     viewModel.setBudget(cat, limit)
@@ -388,13 +447,13 @@ fun BudgetProgressCard(
                         )
                         Text(
                             text = when {
-                                isExceeded -> "⚠️ Límite superado (${String.format(Locale.US, "%.0f", percentage)}%)"
-                                isWarning -> "⚡ Cerca del límite (${String.format(Locale.US, "%.0f", percentage)}%)"
+                                isExceeded -> "⚠️ ¡Límite superado! (${String.format(Locale.US, "%.0f", percentage)}%)"
+                                isWarning -> "⚡ Cerca de sobrepasar el límite (${String.format(Locale.US, "%.0f", percentage)}%)"
                                 else -> "En rango saludable (${String.format(Locale.US, "%.0f", percentage)}%)"
                             },
                             style = MaterialTheme.typography.bodySmall.copy(
                                 color = progressColor,
-                                fontWeight = FontWeight.SemiBold
+                                fontWeight = FontWeight.Bold
                             )
                         )
                     }
@@ -444,12 +503,33 @@ fun BudgetProgressCard(
                     )
                 )
             }
+
+            if (isWarning) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "⚡ Alerta: Has consumido el ${String.format(Locale.US, "%.0f", percentage)}% de este presupuesto y estás cerca de sobrepasar tu límite establecido (Restante: ${formatCordobas((budget.monthlyLimit - spent).coerceAtLeast(0.0))}).",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = Color(0xFFB45309),
+                        fontWeight = FontWeight.SemiBold
+                    )
+                )
+            } else if (isExceeded) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "⚠️ Alerta: Has sobrepasado tu límite establecido en esta categoría por ${formatCordobas(spent - budget.monthlyLimit)}.",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = FinanceError,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                )
+            }
         }
     }
 }
 
 @Composable
 fun AddBudgetDialog(
+    lang: com.example.util.AppLanguage,
     onDismiss: () -> Unit,
     onConfirm: (category: String, limit: Double) -> Unit
 ) {
@@ -557,7 +637,7 @@ fun AddBudgetDialog(
                 onClick = {
                     val limit = limitStr.toDoubleOrNull()
                     if (limit == null || limit <= 0.0) {
-                        errorMsg = "Por favor ingresa un límite válido mayor a 0."
+                        errorMsg = Localization.t("error_budget_limit_invalid", lang)
                         return@Button
                     }
                     onConfirm(selectedCategory, limit)

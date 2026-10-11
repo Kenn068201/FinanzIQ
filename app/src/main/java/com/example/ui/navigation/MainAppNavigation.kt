@@ -1,5 +1,6 @@
 package com.example.ui.navigation
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -49,8 +50,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.ui.FinanceViewModel
 import com.example.ui.admin.AdminScreen
@@ -132,7 +135,8 @@ fun AuthenticatedAppScaffold(
     val selectedCurrency by viewModel.selectedCurrency.collectAsState()
     val lang by viewModel.currentLanguage.collectAsState()
     val navController = rememberNavController()
-    var currentRoute by remember { mutableStateOf(Screen.Dashboard.route) }
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route ?: Screen.Dashboard.route
     var showUserMenu by remember { mutableStateOf(false) }
 
     var showQuickAddDialog by remember { mutableStateOf(false) }
@@ -263,11 +267,26 @@ fun AuthenticatedAppScaffold(
                     NavigationBarItem(
                         selected = isSelected,
                         onClick = {
-                            currentRoute = screen.route
-                            navController.navigate(screen.route) {
-                                popUpTo(Screen.Dashboard.route) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
+                            if (screen.route == Screen.Dashboard.route) {
+                                // Al volver a la pantalla de Inicio, se desapilan las funciones secundarias
+                                // (como el simulador de Ahorro, billeteras, etc.) para mostrar siempre el dashboard inicial
+                                val popped = navController.popBackStack(Screen.Dashboard.route, inclusive = false)
+                                if (!popped) {
+                                    navController.navigate(Screen.Dashboard.route) {
+                                        popUpTo(navController.graph.findStartDestination().id) {
+                                            inclusive = false
+                                            saveState = false
+                                        }
+                                        launchSingleTop = true
+                                        restoreState = false
+                                    }
+                                }
+                            } else {
+                                navController.navigate(screen.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
                             }
                         },
                         icon = {
@@ -299,6 +318,23 @@ fun AuthenticatedAppScaffold(
         containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier.fillMaxSize()
     ) { innerPadding ->
+        // Manejador del botón Atrás del sistema para garantizar el retorno al Dashboard inicial
+        if (currentRoute != Screen.Dashboard.route) {
+            BackHandler {
+                val popped = navController.popBackStack(Screen.Dashboard.route, inclusive = false)
+                if (!popped) {
+                    navController.navigate(Screen.Dashboard.route) {
+                        popUpTo(navController.graph.findStartDestination().id) {
+                            inclusive = false
+                            saveState = false
+                        }
+                        launchSingleTop = true
+                        restoreState = false
+                    }
+                }
+            }
+        }
+
         NavHost(
             navController = navController,
             startDestination = Screen.Dashboard.route,
@@ -310,27 +346,21 @@ fun AuthenticatedAppScaffold(
                 DashboardScreen(
                     viewModel = viewModel,
                     onNavigateToTransactions = {
-                        currentRoute = Screen.Transactions.route
                         navController.navigate(Screen.Transactions.route)
                     },
                     onNavigateToBudgets = {
-                        currentRoute = Screen.Budgets.route
                         navController.navigate(Screen.Budgets.route)
                     },
                     onNavigateToSavings = {
-                        currentRoute = Screen.Savings.route
                         navController.navigate(Screen.Savings.route)
                     },
                     onNavigateToBills = {
-                        currentRoute = Screen.Bills.route
                         navController.navigate(Screen.Bills.route)
                     },
                     onNavigateToAiAssistant = {
-                        currentRoute = Screen.AiAssistant.route
                         navController.navigate(Screen.AiAssistant.route)
                     },
                     onNavigateToWallets = {
-                        currentRoute = Screen.Wallets.route
                         navController.navigate(Screen.Wallets.route)
                     },
                     onOpenAddTransaction = { type ->

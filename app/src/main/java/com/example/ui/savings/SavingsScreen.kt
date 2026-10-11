@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -62,11 +63,13 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -91,8 +94,10 @@ import com.example.ui.theme.FinancePrimary
 import com.example.ui.theme.FinanceSecondaryContainer
 import com.example.ui.theme.FinanceSuccess
 import com.example.ui.theme.FinanceSuccessContainer
+import com.example.util.AppLanguage
 import com.example.util.Localization
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -119,18 +124,32 @@ fun SavingsScreen(
     val simMonths by viewModel.simMonths.collectAsState()
 
     val simDailyAmount by viewModel.simDailyAmount.collectAsState()
+    val simDailyDays by viewModel.simDailyDays.collectAsState()
     val simDailyStart by viewModel.simDailyStartDate.collectAsState()
     val simDailyEnd by viewModel.simDailyEndDate.collectAsState()
 
-    var simulatorTab by remember { mutableIntStateOf(0) } // 0: Mensual, 1: Diario
+    var simulatorTab by rememberSaveable { mutableIntStateOf(0) } // 0: Mensual, 1: Diario
     var showAddGoalDialog by remember { mutableStateOf(false) }
     var depositGoalTarget by remember { mutableStateOf<SavingsGoalEntity?>(null) }
 
-    // Cálculo exacto mensual
-    val (principalTotal, _) = viewModel.calculateSimulationTotal()
+    // Estado reactivo y persistente del simulador de ahorro diario
+    var dailyAmountInput by rememberSaveable { mutableStateOf(if (simDailyAmount % 1.0 == 0.0) simDailyAmount.toInt().toString() else simDailyAmount.toString()) }
+    var dailyDaysInput by rememberSaveable { mutableStateOf(simDailyDays.toString()) }
 
-    // Cálculo exacto diario
-    val (dailyDays, dailyTotal, dailyError) = viewModel.calculateDailySimulation()
+    // Sincronizar reactivamente si el ViewModel emite cambios (chips, llamadas externas o reinicio)
+    LaunchedEffect(simDailyAmount) {
+        val currentParsed = dailyAmountInput.toDoubleOrNull() ?: 0.0
+        if (Math.abs(currentParsed - simDailyAmount) > 0.001 && simDailyAmount > 0) {
+            dailyAmountInput = if (simDailyAmount % 1.0 == 0.0) simDailyAmount.toInt().toString() else simDailyAmount.toString()
+        }
+    }
+
+    LaunchedEffect(simDailyDays) {
+        val currentParsed = dailyDaysInput.toIntOrNull() ?: 0
+        if (currentParsed != simDailyDays && simDailyDays > 0) {
+            dailyDaysInput = simDailyDays.toString()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -372,18 +391,33 @@ fun SavingsScreen(
                                 }
                             }
                         } else {
-                            // --- SIMULACIÓN DIARIA EXACTA ---
-                            if (dailyError != null) {
-                                ErrorWarningBox(message = dailyError)
-                                Spacer(modifier = Modifier.height(12.dp))
+                            // --- SIMULACIÓN DIARIA DINÁMICA POR CANTIDAD Y LAPSO DE TIEMPO ---
+                            // El cálculo se actualiza dinámicamente en tiempo real con los valores ingresados por el usuario
+                            val currentDailyAmount = dailyAmountInput.toDoubleOrNull() ?: 0.0
+                            val currentDailyDays = dailyDaysInput.toIntOrNull() ?: 0
+                            val dynamicDailyTotal = if (currentDailyAmount > 0 && currentDailyDays > 0) {
+                                currentDailyAmount * currentDailyDays
+                            } else {
+                                0.0
                             }
 
-                            // Campo de Monto Diario
+                            // 1. Campo de Cantidad Ingresada a Ahorrar por Día
+                            Text(
+                                text = "Cantidad a Ahorrar por Día:",
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+
                             OutlinedTextField(
-                                value = if (simDailyAmount > 0) String.format(Locale.US, "%.2f", simDailyAmount).removeSuffix(".00") else "",
-                                onValueChange = {
-                                    val newAmount = it.toDoubleOrNull() ?: 0.0
-                                    viewModel.updateDailySimulator(newAmount, simDailyStart, simDailyEnd)
+                                value = dailyAmountInput,
+                                onValueChange = { input ->
+                                    dailyAmountInput = input.filter { c -> c.isDigit() || c == '.' }
+                                    val amt = dailyAmountInput.toDoubleOrNull() ?: 0.0
+                                    val days = dailyDaysInput.toIntOrNull() ?: simDailyDays
+                                    viewModel.updateDailySimulatorByLapse(amt, days.coerceAtLeast(1))
                                 },
                                 label = { Text("${Localization.t("sim_daily_amount_label", lang)} (${currency.symbol})") },
                                 placeholder = { Text("50.00") },
@@ -395,17 +429,38 @@ fun SavingsScreen(
                                     .testTag("sim_daily_amount_input")
                             )
 
-                            Spacer(modifier = Modifier.height(10.dp))
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Slider interactivo para ajustar el monto diario dinámicamente
+                            Slider(
+                                value = currentDailyAmount.toFloat().coerceIn(10f, 1000f),
+                                onValueChange = { newAmt ->
+                                    val roundedAmt = Math.round(newAmt / 5f) * 5.0
+                                    dailyAmountInput = if (roundedAmt % 1.0 == 0.0) roundedAmt.toInt().toString() else roundedAmt.toString()
+                                    val days = dailyDaysInput.toIntOrNull() ?: simDailyDays
+                                    viewModel.updateDailySimulatorByLapse(roundedAmt, days.coerceAtLeast(1))
+                                },
+                                valueRange = 10f..1000f,
+                                colors = SliderDefaults.colors(
+                                    thumbColor = FinancePrimary,
+                                    activeTrackColor = FinancePrimary
+                                )
+                            )
 
                             // Chips de Montos Diarios Sugeridos
                             Row(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                listOf(20.0, 50.0, 100.0, 200.0, 500.0).forEach { amt ->
+                                listOf(10.0, 20.0, 50.0, 100.0, 200.0, 500.0).forEach { amt ->
+                                    val isSelected = (currentDailyAmount == amt)
                                     FilterChip(
-                                        selected = simDailyAmount == amt,
-                                        onClick = { viewModel.updateDailySimulator(amt, simDailyStart, simDailyEnd) },
+                                        selected = isSelected,
+                                        onClick = {
+                                            dailyAmountInput = if (amt % 1.0 == 0.0) amt.toInt().toString() else amt.toString()
+                                            val days = dailyDaysInput.toIntOrNull() ?: simDailyDays
+                                            viewModel.updateDailySimulatorByLapse(amt, days.coerceAtLeast(1))
+                                        },
                                         label = { Text("${currency.symbol} ${amt.toInt()}", fontSize = 11.sp) },
                                         colors = FilterChipDefaults.filterChipColors(
                                             selectedContainerColor = FinanceSecondaryContainer,
@@ -415,84 +470,167 @@ fun SavingsScreen(
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(12.dp))
+                            Spacer(modifier = Modifier.height(14.dp))
 
-                            // Fecha de Inicio (Valida >= Hoy)
+                            // 2. Lapso de Tiempo para el Ahorro
+                            Text(
+                                text = "Lapso de Tiempo de la Simulación:",
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+
                             OutlinedTextField(
-                                value = simDailyStart,
-                                onValueChange = {
-                                    viewModel.updateDailySimulator(simDailyAmount, it, simDailyEnd)
+                                value = dailyDaysInput,
+                                onValueChange = { input ->
+                                    dailyDaysInput = input.filter { it.isDigit() }
+                                    val days = dailyDaysInput.toIntOrNull() ?: 0
+                                    val amt = dailyAmountInput.toDoubleOrNull() ?: simDailyAmount
+                                    viewModel.updateDailySimulatorByLapse(amt, days.coerceAtLeast(1))
                                 },
-                                label = { Text(Localization.t("sim_daily_start_date", lang)) },
-                                placeholder = { Text("AAAA-MM-DD") },
+                                label = { Text("Lapso de Tiempo en Días") },
+                                placeholder = { Text("ej. 30") },
                                 leadingIcon = {
                                     Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = FinancePrimary)
                                 },
                                 singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .testTag("sim_daily_start_input")
+                                    .testTag("sim_daily_days_input")
                             )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Slider interactivo para ajustar los días de forma dinámica
+                            Slider(
+                                value = currentDailyDays.toFloat().coerceIn(1f, 365f),
+                                onValueChange = { newDays ->
+                                    val daysInt = newDays.toInt().coerceAtLeast(1)
+                                    dailyDaysInput = daysInt.toString()
+                                    val amt = dailyAmountInput.toDoubleOrNull() ?: simDailyAmount
+                                    viewModel.updateDailySimulatorByLapse(amt, daysInt)
+                                },
+                                valueRange = 1f..365f,
+                                colors = SliderDefaults.colors(
+                                    thumbColor = FinancePrimary,
+                                    activeTrackColor = FinancePrimary
+                                )
+                            )
+
+                            // Chips de Lapsos de Tiempo Sugeridos
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                val lapseOptions = listOf(
+                                    7 to "7 días (1 sem)",
+                                    15 to "15 días (quincena)",
+                                    30 to "30 días (1 mes)",
+                                    60 to "60 días (2 meses)",
+                                    90 to "90 días (trimestre)",
+                                    180 to "180 días (semestre)",
+                                    365 to "365 días (1 año)"
+                                )
+                                items(lapseOptions) { (days, label) ->
+                                    val isSelected = (currentDailyDays == days)
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = {
+                                            dailyDaysInput = days.toString()
+                                            val amt = dailyAmountInput.toDoubleOrNull() ?: simDailyAmount
+                                            viewModel.updateDailySimulatorByLapse(amt, days)
+                                        },
+                                        label = { Text(label, fontSize = 11.sp) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = FinanceSecondaryContainer,
+                                            selectedLabelColor = FinancePrimary
+                                        )
+                                    )
+                                }
+                            }
 
                             Spacer(modifier = Modifier.height(10.dp))
 
-                            // Fecha de Fin (Valida > Fecha Inicio)
-                            OutlinedTextField(
-                                value = simDailyEnd,
-                                onValueChange = {
-                                    viewModel.updateDailySimulator(simDailyAmount, simDailyStart, it)
-                                },
-                                label = { Text(Localization.t("sim_daily_end_date", lang)) },
-                                placeholder = { Text("AAAA-MM-DD") },
-                                leadingIcon = {
-                                    Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = FinancePrimary)
-                                },
-                                singleLine = true,
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .testTag("sim_daily_end_input")
+                            // Resumen de fechas estimadas
+                            val cal = Calendar.getInstance().apply {
+                                add(Calendar.DAY_OF_YEAR, currentDailyDays.coerceAtLeast(1))
+                            }
+                            val estimatedEndDate = SimpleDateFormat("dd MMM, yyyy", Locale.getDefault()).format(cal.time)
+                            val startDate = SimpleDateFormat("dd MMM, yyyy", Locale.getDefault()).format(Date())
+
+                            Text(
+                                text = "🗓️ Período estimado: del $startDate al $estimatedEndDate ($currentDailyDays días)",
+                                style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF64748B))
                             )
 
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
 
-                            // Cuadro de Resultado Diario Exacto
-                            if (dailyError == null && dailyDays > 0) {
+                            // Botón explícito para Ejecutar/Recalcular la Simulación
+                            Button(
+                                onClick = {
+                                    val amt = dailyAmountInput.toDoubleOrNull() ?: 0.0
+                                    val days = dailyDaysInput.toIntOrNull() ?: 0
+                                    viewModel.updateDailySimulatorByLapse(amt, days.coerceAtLeast(1))
+                                    viewModel.calculateDailySimulation(amt, days)
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = FinancePrimary,
+                                    contentColor = FinanceOnPrimary
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(46.dp)
+                                    .testTag("calculate_daily_savings_button")
+                            ) {
+                                Icon(Icons.Default.Payments, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = if (lang == AppLanguage.SPANISH) "Calcular Simulación de Ahorro" else "Calculate Savings Simulation",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            // 3. Cuadro de Resultado Dinámico en Tiempo Real según lo ingresado por el usuario
+                            if (currentDailyAmount > 0 && currentDailyDays > 0) {
                                 Card(
                                     shape = RoundedCornerShape(14.dp),
                                     colors = CardDefaults.cardColors(containerColor = FinanceSuccessContainer),
-                                    modifier = Modifier.fillMaxWidth().testTag("sim_daily_result_box")
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("sim_daily_result_box")
                                 ) {
-                                    Column(modifier = Modifier.padding(14.dp)) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Default.CheckCircle,
+                                                contentDescription = null,
+                                                tint = Color(0xFF14532D),
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = "🎯 Resultado Dinámico de Ahorro Diario",
+                                                style = MaterialTheme.typography.labelMedium.copy(
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFF14532D)
+                                                )
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(8.dp))
                                         Text(
-                                            text = Localization.t("sim_result_header", lang),
-                                            style = MaterialTheme.typography.labelMedium.copy(
+                                            text = "Ahorrando ${currency.symbol} ${String.format(Locale.US, "%,.2f", currentDailyAmount)} al día durante $currentDailyDays días, acumularás un total de ${currency.symbol} ${String.format(Locale.US, "%,.2f", dynamicDailyTotal)}.",
+                                            style = MaterialTheme.typography.bodyMedium.copy(
                                                 fontWeight = FontWeight.Bold,
                                                 color = Color(0xFF14532D)
                                             )
                                         )
                                         Spacer(modifier = Modifier.height(6.dp))
                                         Text(
-                                            text = Localization.t(
-                                                "sim_result_daily_text",
-                                                lang,
-                                                "${currency.symbol} ${String.format(Locale.US, "%,.2f", simDailyAmount)}",
-                                                simDailyStart,
-                                                simDailyEnd,
-                                                "$dailyDays",
-                                                "${currency.symbol} ${String.format(Locale.US, "%,.2f", dailyTotal)}",
-                                                "${currency.symbol} ${String.format(Locale.US, "%,.2f", simDailyAmount)}",
-                                                "$dailyDays"
-                                            ),
-                                            style = MaterialTheme.typography.bodyMedium.copy(
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color(0xFF14532D)
-                                            )
-                                        )
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text(
-                                            text = "(${currency.symbol} ${String.format(Locale.US, "%,.2f", simDailyAmount)} × $dailyDays días = ${currency.symbol} ${String.format(Locale.US, "%,.2f", dailyTotal)})",
+                                            text = "(${currency.symbol} ${String.format(Locale.US, "%,.2f", currentDailyAmount)} diario × $currentDailyDays días = ${currency.symbol} ${String.format(Locale.US, "%,.2f", dynamicDailyTotal)} acumulados)",
                                             style = MaterialTheme.typography.bodySmall.copy(
                                                 color = Color(0xFF166534),
                                                 fontWeight = FontWeight.SemiBold
@@ -500,6 +638,20 @@ fun SavingsScreen(
                                         )
                                     }
                                 }
+                            } else if (currentDailyAmount <= 0.0) {
+                                ErrorWarningBox(
+                                    message = if (lang == AppLanguage.SPANISH)
+                                        "Ingrese un monto diario mayor a 0 para simular."
+                                    else
+                                        "Please enter a daily savings amount greater than 0."
+                                )
+                            } else {
+                                ErrorWarningBox(
+                                    message = if (lang == AppLanguage.SPANISH)
+                                        "Ingrese un lapso de tiempo en días mayor a 0 para simular."
+                                    else
+                                        "Please enter a number of days greater than 0."
+                                )
                             }
                         }
                     }

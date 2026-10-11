@@ -68,6 +68,7 @@ import com.example.ui.theme.FinanceOnPrimary
 import com.example.ui.theme.FinancePrimary
 import com.example.ui.theme.FinanceSecondaryContainer
 import com.example.ui.theme.FinanceSuccess
+import com.example.util.Localization
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,6 +76,7 @@ fun AdminScreen(
     viewModel: FinanceViewModel,
     modifier: Modifier = Modifier
 ) {
+    val lang by viewModel.currentLanguage.collectAsState()
     val users by viewModel.allUsers.collectAsState()
     val categories by viewModel.categories.collectAsState()
     val currentUser by viewModel.currentUser.collectAsState()
@@ -320,6 +322,7 @@ fun AdminScreen(
 
         if (showAddCategoryDialog) {
             AddCategoryDialog(
+                lang = lang,
                 onDismiss = { showAddCategoryDialog = false },
                 onConfirm = { name, type ->
                     viewModel.addCategory(name, type)
@@ -332,6 +335,7 @@ fun AdminScreen(
 
 @Composable
 fun AddCategoryDialog(
+    lang: com.example.util.AppLanguage,
     onDismiss: () -> Unit,
     onConfirm: (name: String, type: String) -> Unit
 ) {
@@ -401,7 +405,7 @@ fun AddCategoryDialog(
             Button(
                 onClick = {
                     if (name.isBlank()) {
-                        errorMsg = "Por favor ingresa un nombre para la categoría."
+                        errorMsg = Localization.t("error_category_name_required", lang)
                         return@Button
                     }
                     onConfirm(name.trim(), type)

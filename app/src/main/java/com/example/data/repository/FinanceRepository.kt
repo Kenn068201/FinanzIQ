@@ -210,6 +210,48 @@ class FinanceRepository(private val db: AppDatabase) {
 
     suspend fun getCategoryCount(): Int = categoryDao.getCategoryCount()
 
+    // Coincidencia inteligente entre la categoría y subcategoría del gasto y el presupuesto establecido
+    fun doesTransactionMatchBudget(txCategory: String, txSubCategory: String, budgetCategory: String): Boolean {
+        val cleanTx = txCategory.trim().lowercase(Locale.ROOT)
+        val cleanSub = txSubCategory.trim().lowercase(Locale.ROOT)
+        val cleanBudget = budgetCategory.trim().lowercase(Locale.ROOT)
+
+        if (cleanTx == cleanBudget) return true
+        if (cleanSub.isNotEmpty() && cleanSub == cleanBudget) return true
+
+        val isFood = (cleanTx.contains("alimenta") || cleanTx.contains("comida") || cleanTx.contains("supermercado")) &&
+                     (cleanBudget.contains("alimenta") || cleanBudget.contains("comida"))
+        if (isFood) return true
+
+        val isTransport = (cleanTx.contains("transporte") || cleanTx.contains("gasolina") || cleanTx.contains("auto")) &&
+                          (cleanBudget.contains("transporte") || cleanBudget.contains("gasolina") || cleanBudget.contains("auto"))
+        if (isTransport) return true
+
+        val isUtilities = (cleanTx.contains("servicio") || cleanTx.contains("agua") || cleanTx.contains("luz") || cleanTx.contains("internet")) &&
+                          (cleanBudget.contains("servicio") || cleanBudget.contains("agua") || cleanBudget.contains("luz") || cleanBudget.contains("internet") || cleanBudget.contains("público"))
+        if (isUtilities) return true
+
+        val isHousing = (cleanTx.contains("vivienda") || cleanTx.contains("hogar") || cleanTx.contains("alquiler") || cleanTx.contains("casa")) &&
+                        (cleanBudget.contains("vivienda") || cleanBudget.contains("hogar") || cleanBudget.contains("alquiler") || cleanBudget.contains("casa"))
+        if (isHousing) return true
+
+        val isEntertainment = (cleanTx.contains("entretenimiento") || cleanTx.contains("ocio") || cleanTx.contains("cine") || cleanTx.contains("juego")) &&
+                              (cleanBudget.contains("entretenimiento") || cleanBudget.contains("ocio"))
+        if (isEntertainment) return true
+
+        val isHealth = cleanTx.contains("salud") && cleanBudget.contains("salud")
+        if (isHealth) return true
+
+        val isEducation = cleanTx.contains("educa") && cleanBudget.contains("educa")
+        if (isEducation) return true
+
+        val isDebt = (cleanTx.contains("deuda") || cleanTx.contains("crédito") || cleanTx.contains("prestamo") || cleanTx.contains("préstamo")) &&
+                     (cleanBudget.contains("deuda") || cleanBudget.contains("crédito") || cleanBudget.contains("prestamo") || cleanBudget.contains("préstamo"))
+        if (isDebt) return true
+
+        return cleanTx.contains(cleanBudget) || cleanBudget.contains(cleanTx)
+    }
+
     // --- Análisis y cálculos inteligentes---
     fun calculateSummary(
         transactions: List<TransactionEntity>,
@@ -250,15 +292,18 @@ class FinanceRepository(private val db: AppDatabase) {
             (currentMonthExpense / dayOfMonth) * daysInMonth
         } else currentMonthExpense
 
-        //Alertas presupuestarias y avisos 
+        // Alertas presupuestarias y avisos cuando el gasto es >= 80% o superior
         val alerts = mutableListOf<String>()
         for (b in budgets) {
-            val spent = expensesByCategory[b.category] ?: 0.0
-            val pct = (spent / b.monthlyLimit) * 100
+            val spent = transactions.filter { tx ->
+                tx.type == "EXPENSE" && doesTransactionMatchBudget(tx.category, tx.subCategory, b.category)
+            }.sumOf { it.amount }
+
+            val pct = if (b.monthlyLimit > 0) (spent / b.monthlyLimit) * 100 else 0.0
             if (pct >= 100) {
                 alerts.add("⚠️ Has superado el 100% de tu presupuesto en '${b.category}' (Gastado: C$${String.format(Locale.US, "%.2f", spent)} / Límite: C$${String.format(Locale.US, "%.2f", b.monthlyLimit)})")
             } else if (pct >= 80) {
-                alerts.add("⚡ Estás cerca del límite (${String.format(Locale.US, "%.0f", pct)}%) en '${b.category}'. Te quedan C$${String.format(Locale.US, "%.2f", b.monthlyLimit - spent)}")
+                alerts.add("⚡ Estás cerca del límite (${String.format(Locale.US, "%.0f", pct)}%) en '${b.category}'. Te quedan C$${String.format(Locale.US, "%.2f", (b.monthlyLimit - spent).coerceAtLeast(0.0))}")
             }
         }
 

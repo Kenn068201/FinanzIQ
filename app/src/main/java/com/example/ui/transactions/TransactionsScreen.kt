@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.TrendingDown
@@ -44,6 +45,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import com.example.data.local.FinancialAccountEntity
+import com.example.ui.reports.ExportPdfReportDialog
 import com.example.util.AppLanguage
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -155,9 +157,9 @@ fun TransactionsScreen(
                         modifier = Modifier.testTag("export_report_button")
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Description,
+                            imageVector = Icons.Default.PictureAsPdf,
                             contentDescription = Localization.t("export_report_title", lang),
-                            tint = FinancePrimary
+                            tint = FinanceError
                         )
                     }
                 },
@@ -387,64 +389,11 @@ fun TransactionsScreen(
             )
         }
 
-        // Export Report Dialog
+        // Export PDF Report Dialog (con selector de rango de tiempo y 2 tablas de balance y cuentas)
         if (showExportDialog) {
-            val reportContent = viewModel.generateExportContent()
-            AlertDialog(
-                onDismissRequest = { showExportDialog = false },
-                title = {
-                    Text(
-                        text = Localization.t("export_report_title", lang),
-                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
-                    )
-                },
-                text = {
-                    Column {
-                        Text(
-                            text = Localization.t("export_report_desc", lang),
-                            style = MaterialTheme.typography.bodyMedium.copy(color = Color(0xFF4B5563))
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = FinanceSecondaryContainer.copy(alpha = 0.5f)),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                text = "• Incluye balance general, total ingresos, total gastos y detalle cronológico.",
-                                style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF111827)),
-                                modifier = Modifier.padding(12.dp)
-                            )
-                        }
-                    }
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            val sendIntent = Intent().apply {
-                                action = Intent.ACTION_SEND
-                                putExtra(Intent.EXTRA_TEXT, reportContent)
-                                putExtra(Intent.EXTRA_SUBJECT, "Reporte Financiero - FinanzIQ")
-                                type = "text/plain"
-                            }
-                            val shareIntent = Intent.createChooser(sendIntent, "Exportar Reporte")
-                            context.startActivity(shareIntent)
-                            showExportDialog = false
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = FinancePrimary),
-                        modifier = Modifier.testTag("confirm_export_share_button")
-                    ) {
-                        Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(Localization.t("share_export_btn", lang))
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showExportDialog = false }) {
-                        Text(Localization.t("close", lang))
-                    }
-                },
-                shape = RoundedCornerShape(18.dp),
-                containerColor = MaterialTheme.colorScheme.surface
+            ExportPdfReportDialog(
+                viewModel = viewModel,
+                onDismiss = { showExportDialog = false }
             )
         }
     }
@@ -954,9 +903,6 @@ fun AddTransactionDialog(
                                     selected = selectedSubcategoryIndex == subIdx,
                                     onClick = {
                                         selectedSubcategoryIndex = subIdx
-                                        if (title.isBlank()) {
-                                            title = if (lang == AppLanguage.ENGLISH) sub.nameEn else sub.nameEs
-                                        }
                                     },
                                     label = { Text("${sub.iconEmoji} ${if (lang == AppLanguage.ENGLISH) sub.nameEn else sub.nameEs}") }
                                 )
@@ -1049,22 +995,10 @@ fun AddTransactionDialog(
             Button(
                 onClick = {
                     val amount = amountStr.toDoubleOrNull()
-                    val trimmedTitle = title.trim().ifBlank {
-                        if (type == "INCOME") {
-                            if (incomeSubType == "PASSIVE") {
-                                if (lang == AppLanguage.ENGLISH) selectedPassiveCategory.titleEn else selectedPassiveCategory.titleEs
-                            } else {
-                                if (lang == AppLanguage.ENGLISH) activeCategories[selectedActiveIndex].nameEn else activeCategories[selectedActiveIndex].nameEs
-                            }
-                        } else {
-                            if (lang == AppLanguage.ENGLISH) {
-                                selectedSubcategoryItem?.nameEn ?: selectedCategoryItem.nameEn
-                            } else {
-                                selectedSubcategoryItem?.nameEs ?: selectedCategoryItem.nameEs
-                            }
-                        }
-                    }
+                    val trimmedTitle = title.trim()
 
+                    // Validación estricta: El campo Concepto/Descripción no puede quedar vacío.
+                    // Si el usuario no ingresa nada, se detiene el flujo y se muestra la advertencia en español.
                     if (trimmedTitle.isBlank()) {
                         errorMessage = Localization.t("error_empty_title", lang)
                         return@Button

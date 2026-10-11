@@ -45,10 +45,11 @@ object CategoryDataHierarchy {
         titleEs = "Gastos Fijos",
         titleEn = "Fixed Expenses",
         categories = listOf(
+            // Categoría unificada de Vivienda (eliminada duplicación anterior "Vivienda/Hogar")
             CategoryItem(
                 id = "vivienda",
-                nameEs = "Vivienda/Hogar",
-                nameEn = "Housing/Home",
+                nameEs = "Vivienda",
+                nameEn = "Housing",
                 iconEmoji = "🏠"
             ),
             CategoryItem(
@@ -214,8 +215,9 @@ object CategoryDataHierarchy {
         )
     )
 
+    // Categoría unificada de Salario (eliminada duplicación anterior "Salario / Sueldo")
     val activeIncomeCategories = listOf(
-        CategoryItem("salario", "Salario / Sueldo", "Salary / Wages", "💼"),
+        CategoryItem("salario", "Salario", "Salary", "💼"),
         CategoryItem("honorarios", "Honorarios Profesionales", "Professional Fees", "📄"),
         CategoryItem("ventas", "Ventas Directas", "Direct Sales", "🛍️"),
         CategoryItem("comisiones", "Comisiones", "Commissions", "🎯"),

@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.ElectricBolt
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Percent
+import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -40,6 +41,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,6 +57,8 @@ import com.example.data.local.TransactionEntity
 import com.example.ui.FinanceViewModel
 import com.example.ui.components.SectionHeader
 import com.example.ui.components.formatCordobas
+import com.example.ui.reports.ExportPdfReportDialog
+import com.example.util.AppLanguage
 import com.example.ui.theme.FinanceBackground
 import com.example.ui.theme.FinanceBorderSky
 import com.example.ui.theme.FinanceError
@@ -77,11 +83,18 @@ fun DashboardScreen(
     onOpenAddTransaction: (type: String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val lang by viewModel.currentLanguage.collectAsState()
     val currentUser by viewModel.currentUser.collectAsState()
     val transactions by viewModel.allTransactions.collectAsState()
     val summary by viewModel.financialSummary.collectAsState()
     val savingsGoals by viewModel.savingsGoals.collectAsState()
     val bills by viewModel.bills.collectAsState()
+    val accounts by viewModel.financialAccounts.collectAsState()
+    var showExportPdfDialog by remember { mutableStateOf(false) }
+
+    // El saldo de la tarjeta del dashboard principal coincide de forma reactiva con la suma de las billeteras/cuentas
+    val totalWalletBalance = accounts.filter { it.isActive }.sumOf { it.balance }
+    val heroBalance = if (accounts.isNotEmpty()) totalWalletBalance else summary.balance
 
     val pendingBills = bills.filter { !it.isPaid }
 
@@ -207,8 +220,9 @@ fun DashboardScreen(
 
                         Spacer(modifier = Modifier.height(10.dp))
 
+                        // Refleja el saldo exacto consolidado de las billeteras activas del usuario
                         Text(
-                            text = formatCordobas(summary.balance),
+                            text = formatCordobas(heroBalance),
                             style = MaterialTheme.typography.displayMedium.copy(
                                 color = Color(0xFF0C4A6E),
                                 fontWeight = FontWeight.ExtraBold
@@ -336,52 +350,79 @@ fun DashboardScreen(
 
             // Quick Actions Bar (Sleek Pills)
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Button(
-                        onClick = { onOpenAddTransaction("INCOME") },
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = FinanceSecondaryContainer),
-                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(46.dp)
-                            .testTag("add_income_quick_button")
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = null, tint = FinancePrimary, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Ingreso", color = FinancePrimary, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
+                        Button(
+                            onClick = { onOpenAddTransaction("INCOME") },
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = FinanceSecondaryContainer),
+                            elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(46.dp)
+                                .testTag("add_income_quick_button")
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, tint = FinancePrimary, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(if (lang == AppLanguage.SPANISH) "Ingreso" else "Income", color = FinancePrimary, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
+                        }
+
+                        Button(
+                            onClick = { onOpenAddTransaction("EXPENSE") },
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFE4E6)),
+                            elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(46.dp)
+                                .testTag("add_expense_quick_button")
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, tint = FinanceError, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(if (lang == AppLanguage.SPANISH) "Gasto" else "Expense", color = FinanceError, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
+                        }
                     }
 
-                    Button(
-                        onClick = { onOpenAddTransaction("EXPENSE") },
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFE4E6)),
-                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(46.dp)
-                            .testTag("add_expense_quick_button")
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = null, tint = FinanceError, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Gasto", color = FinanceError, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
-                    }
+                        OutlinedButton(
+                            onClick = { showExportPdfDialog = true },
+                            shape = RoundedCornerShape(16.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFCA5A5)),
+                            colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFFFEF2F2)),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(46.dp)
+                                .testTag("dashboard_export_pdf_button")
+                        ) {
+                            Icon(Icons.Default.PictureAsPdf, contentDescription = null, tint = Color(0xFFDC2626), modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (lang == AppLanguage.SPANISH) "Reporte PDF" else "PDF Report",
+                                color = Color(0xFFDC2626),
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.labelMedium
+                            )
+                        }
 
-                    OutlinedButton(
-                        onClick = onNavigateToSavings,
-                        shape = RoundedCornerShape(16.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCBD5E1)),
-                        modifier = Modifier
-                            .weight(1.1f)
-                            .height(46.dp)
-                            .testTag("simulate_savings_button")
-                    ) {
-                        Icon(Icons.Default.Calculate, contentDescription = null, tint = FinancePrimary, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Simulador", color = Color(0xFF0F172A), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+                        OutlinedButton(
+                            onClick = onNavigateToSavings,
+                            shape = RoundedCornerShape(16.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCBD5E1)),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(46.dp)
+                                .testTag("simulate_savings_button")
+                        ) {
+                            Icon(Icons.Default.Calculate, contentDescription = null, tint = FinancePrimary, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(if (lang == AppLanguage.SPANISH) "Simulador" else "Simulator", color = Color(0xFF0F172A), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+                        }
                     }
                 }
             }
@@ -679,6 +720,13 @@ fun DashboardScreen(
             }
 
             item { Spacer(modifier = Modifier.height(20.dp)) }
+        }
+
+        if (showExportPdfDialog) {
+            ExportPdfReportDialog(
+                viewModel = viewModel,
+                onDismiss = { showExportPdfDialog = false }
+            )
         }
     }
 }

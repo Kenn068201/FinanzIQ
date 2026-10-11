@@ -102,6 +102,20 @@ fun ManageFinancialToolScreen(
         "Billetera Móvil Ficohsa"
     )
 
+    // Función auxiliar para normalizar e identificar la marca del banco emisor
+    fun normalizeBankBrand(name: String): String {
+        val upper = name.uppercase(java.util.Locale.ROOT)
+        return when {
+            upper.contains("BANPRO") -> "BANPRO"
+            upper.contains("BAC") || upper.contains("KASH") -> "BAC"
+            upper.contains("LAFISE") -> "LAFISE"
+            upper.contains("BDF") -> "BDF"
+            upper.contains("FICOHSA") -> "FICOHSA"
+            upper.contains("AVANZ") -> "AVANZ"
+            else -> upper.trim()
+        }
+    }
+
     // Tipo de herramienta principal: "CUENTA" o "BILLETERA"
     var selectedToolType by remember { mutableStateOf("CUENTA") }
 
@@ -554,6 +568,22 @@ fun ManageFinancialToolScreen(
             Button(
                 onClick = {
                     errorMessage = null
+
+                    // Validación obligatoria para billeteras digitales:
+                    // La cuenta vinculada debe pertenecer al mismo banco de la billetera
+                    if (selectedToolType == "BILLETERA") {
+                        if (selectedLinkedAccount == null) {
+                            errorMessage = Localization.t("error_wallet_linked_missing", lang)
+                            return@Button
+                        }
+                        val walletBrand = normalizeBankBrand(selectedWalletProvider)
+                        val linkedAccountBrand = normalizeBankBrand(selectedLinkedAccount!!.bankName)
+                        if (walletBrand != linkedAccountBrand) {
+                            errorMessage = Localization.t("error_wallet_same_bank", lang)
+                            return@Button
+                        }
+                    }
+
                     val initBal = if (selectedToolType == "CUENTA") {
                         initialBalanceStr.toDoubleOrNull() ?: -1.0
                     } else {
