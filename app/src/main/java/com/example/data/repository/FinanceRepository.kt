@@ -5,7 +5,9 @@ import com.example.data.local.BillReminderEntity
 import com.example.data.local.BudgetEntity
 import com.example.data.local.CategoryEntity
 import com.example.data.local.FinancialAccountEntity
+import com.example.data.local.FinancialInstitutionEntity
 import com.example.data.local.SavingsGoalEntity
+import com.example.data.local.SecurityPolicyEntity
 import com.example.data.local.TransactionEntity
 import com.example.data.local.UserEntity
 import com.example.data.remote.GeminiApiClient
@@ -40,6 +42,9 @@ class FinanceRepository(private val db: AppDatabase) {
     private val billDao = db.billReminderDao()
     private val categoryDao = db.categoryDao()
     private val accountDao = db.financialAccountDao()
+    private val institutionDao = db.financialInstitutionDao()
+    private val policyDao = db.securityPolicyDao()
+
 
     // --- Herramientas Financieras (Cuentas y Billeteras) ---
     fun getFinancialAccounts(userId: Long): Flow<List<FinancialAccountEntity>> =
@@ -104,6 +109,8 @@ class FinanceRepository(private val db: AppDatabase) {
 
     // --- Autenticacion y Usuarios ---
     suspend fun getUserByEmail(email: String): UserEntity? = userDao.getUserByEmail(email.trim().lowercase(Locale.ROOT))
+    suspend fun getUserByUsername(username: String): UserEntity? = userDao.getUserByUsername(username.trim().lowercase(Locale.ROOT))
+    suspend fun getUserByIdentifier(identifier: String): UserEntity? = userDao.getUserByIdentifier(identifier.trim().lowercase(Locale.ROOT))
     suspend fun getUserByPhone(phone: String): UserEntity? = userDao.getUserByPhone(phone.trim())
     suspend fun getUserById(id: Long): UserEntity? = userDao.getUserById(id)
     fun getAllUsers(): Flow<List<UserEntity>> = userDao.getAllUsers()
@@ -111,6 +118,36 @@ class FinanceRepository(private val db: AppDatabase) {
     suspend fun updateUser(user: UserEntity) = userDao.updateUser(user)
     suspend fun deleteUser(user: UserEntity) = userDao.deleteUser(user)
     suspend fun getUserCount(): Int = userDao.getUserCount()
+
+    // --- Catálogo de Instituciones Financieras (Bancos y Billeteras) ---
+    fun getAllFinancialInstitutions(): Flow<List<FinancialInstitutionEntity>> =
+        institutionDao.getAllInstitutions()
+
+    fun getActiveFinancialInstitutions(): Flow<List<FinancialInstitutionEntity>> =
+        institutionDao.getActiveInstitutions()
+
+    suspend fun getInstitutionById(id: Long): FinancialInstitutionEntity? =
+        institutionDao.getInstitutionById(id)
+
+    suspend fun insertInstitution(institution: FinancialInstitutionEntity): Long =
+        institutionDao.insertInstitution(institution)
+
+    suspend fun updateInstitution(institution: FinancialInstitutionEntity) =
+        institutionDao.updateInstitution(institution)
+
+    suspend fun deleteInstitution(institution: FinancialInstitutionEntity) =
+        institutionDao.deleteInstitution(institution)
+
+    // --- Directivas de Seguridad Globales ---
+    fun getSecurityPolicy(): Flow<SecurityPolicyEntity?> =
+        policyDao.getSecurityPolicy()
+
+    suspend fun getSecurityPolicyDirect(): SecurityPolicyEntity? =
+        policyDao.getSecurityPolicyDirect()
+
+    suspend fun saveSecurityPolicy(policy: SecurityPolicyEntity) =
+        policyDao.insertOrUpdatePolicy(policy)
+
 
     // --- Transacciones ---
     fun getTransactionsByUser(userId: Long): Flow<List<TransactionEntity>> =

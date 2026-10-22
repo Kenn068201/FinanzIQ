@@ -13,6 +13,12 @@ interface UserDao {
     @Query("SELECT * FROM users WHERE email = :email LIMIT 1")
     suspend fun getUserByEmail(email: String): UserEntity?
 
+    @Query("SELECT * FROM users WHERE username = :username LIMIT 1")
+    suspend fun getUserByUsername(username: String): UserEntity?
+
+    @Query("SELECT * FROM users WHERE email = :identifier OR username = :identifier LIMIT 1")
+    suspend fun getUserByIdentifier(identifier: String): UserEntity?
+
     @Query("SELECT * FROM users WHERE phone = :phone LIMIT 1")
     suspend fun getUserByPhone(phone: String): UserEntity?
 
@@ -165,4 +171,55 @@ interface FinancialAccountDao {
     @Query("UPDATE financial_accounts SET isActive = :isActive WHERE id = :id")
     suspend fun setAccountActiveStatus(id: Long, isActive: Boolean)
 }
+
+/**
+ * DAO para la administración del catálogo de Instituciones Financieras (Bancos y Billeteras).
+ * Permite al administrador consultar, agregar, desactivar con motivo, reactivar y eliminar entidades.
+ * Proporciona Flows reactivos para que los cambios se reflejen de inmediato tanto en la interfaz de
+ * administración como en la interfaz de vinculación de cuentas del usuario final.
+ */
+@Dao
+interface FinancialInstitutionDao {
+    @Query("SELECT * FROM financial_institutions ORDER BY type ASC, fullName ASC")
+    fun getAllInstitutions(): Flow<List<FinancialInstitutionEntity>>
+
+    @Query("SELECT * FROM financial_institutions WHERE isActive = 1 ORDER BY type ASC, fullName ASC")
+    fun getActiveInstitutions(): Flow<List<FinancialInstitutionEntity>>
+
+    @Query("SELECT * FROM financial_institutions WHERE id = :id LIMIT 1")
+    suspend fun getInstitutionById(id: Long): FinancialInstitutionEntity?
+
+    @Query("SELECT * FROM financial_institutions WHERE fullName = :fullName LIMIT 1")
+    suspend fun getInstitutionByName(fullName: String): FinancialInstitutionEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertInstitution(institution: FinancialInstitutionEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertInstitutions(institutions: List<FinancialInstitutionEntity>)
+
+    @Update
+    suspend fun updateInstitution(institution: FinancialInstitutionEntity)
+
+    @Delete
+    suspend fun deleteInstitution(institution: FinancialInstitutionEntity)
+}
+
+/**
+ * DAO para la persistencia de las Directivas de Seguridad Globales de la aplicación.
+ * Garantiza que las modificaciones realizadas por el administrador persistan en la base de datos
+ * y se propaguen mediante Flow a todos los flujos de validación del sistema (login, registro, contraseñas).
+ */
+@Dao
+interface SecurityPolicyDao {
+    @Query("SELECT * FROM security_policies WHERE id = 1 LIMIT 1")
+    fun getSecurityPolicy(): Flow<SecurityPolicyEntity?>
+
+    @Query("SELECT * FROM security_policies WHERE id = 1 LIMIT 1")
+    suspend fun getSecurityPolicyDirect(): SecurityPolicyEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertOrUpdatePolicy(policy: SecurityPolicyEntity)
+}
+
 

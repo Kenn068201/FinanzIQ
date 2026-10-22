@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.PhoneIphone
 import androidx.compose.material.icons.filled.Refresh
@@ -95,8 +96,10 @@ fun WalletsScreen(
     val lang by viewModel.currentLanguage.collectAsState()
     val accounts by viewModel.financialAccounts.collectAsState()
     val currency by viewModel.selectedCurrency.collectAsState()
+    val allInstitutions by viewModel.financialInstitutions.collectAsState()
 
     var selectedTab by remember { mutableIntStateOf(0) } // 0: Todas, 1: Cuentas, 2: Billeteras
+
     var accountToToggle by remember { mutableStateOf<FinancialAccountEntity?>(null) }
     var showTransferDialog by remember { mutableStateOf(false) }
 
@@ -216,8 +219,57 @@ fun WalletsScreen(
                 }
             }
 
+            // Aviso sobre Instituciones Financieras deshabilitadas por Administración
+            val disabledInstitutions = allInstitutions.filter { !it.isActive }
+            if (disabledInstitutions.isNotEmpty()) {
+                item {
+                    Card(
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = androidx.compose.ui.graphics.Color(0xFFFEF3C7)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 2.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                tint = androidx.compose.ui.graphics.Color(0xFFD97706),
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .padding(top = 2.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "Aviso a Usuarios: Entidades Deshabilitadas",
+                                    style = MaterialTheme.typography.titleSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = androidx.compose.ui.graphics.Color(0xFF92400E)
+                                    )
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "El Administrador ha desactivado temporalmente la vinculación de nuevas cuentas para:\n" +
+                                        disabledInstitutions.joinToString("\n") { "• ${it.fullName}: ${it.statusReason}" } +
+                                        "\n(Sus cuentas y billeteras previamente vinculadas continúan operando con normalidad).",
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        color = androidx.compose.ui.graphics.Color(0xFF78350F),
+                                        lineHeight = 18.sp
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             // Pestañas de filtrado de herramientas
             item {
+
                 TabRow(
                     selectedTabIndex = selectedTab,
                     containerColor = MaterialTheme.colorScheme.surface,

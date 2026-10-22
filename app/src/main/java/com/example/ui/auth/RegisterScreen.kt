@@ -26,6 +26,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Cake
 import androidx.compose.material.icons.filled.Check
@@ -96,12 +97,14 @@ fun RegisterScreen(
 ) {
     var firstNames by remember { mutableStateOf("") }
     var lastNames by remember { mutableStateOf("") }
+    var username by remember { mutableStateOf("") }
     var ageStr by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var selectedRole by remember { mutableStateOf("USER") } // "USER" or "ADMIN"
+
 
     // Country prefix selector (North, Central, South America and Caribbean)
     var selectedCountry by remember { mutableStateOf(CountryPhoneData.americanCountries.first()) }
@@ -116,7 +119,9 @@ fun RegisterScreen(
 
     val authError by viewModel.authError.collectAsState()
     val currentLang by viewModel.currentLanguage.collectAsState()
+    val securityPolicy by viewModel.securityPolicy.collectAsState()
     val scrollState = rememberScrollState()
+
 
     Scaffold(
         topBar = {
@@ -285,6 +290,34 @@ fun RegisterScreen(
                         }
                     }
 
+                    // Nombre de Usuario (username)
+                    Column {
+                        OutlinedTextField(
+                            value = username,
+                            onValueChange = {
+                                if (it.length <= 30) {
+                                    username = it.filter { c -> c.isLetterOrDigit() || c == '_' }
+                                    if (authError != null) viewModel.clearAuthError()
+                                }
+                            },
+                            label = { Text("Nombre de Usuario") },
+                            placeholder = { Text("ej. carlos26 (3 a 30 caracteres)") },
+                            leadingIcon = {
+                                Icon(Icons.Default.AccountCircle, contentDescription = null, tint = FinancePrimary)
+                            },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Next),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = FinancePrimary,
+                                focusedLabelColor = FinancePrimary
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("register_username_input")
+                        )
+                    }
+
                     // 3. Edad (Number > 18)
                     OutlinedTextField(
                         value = ageStr,
@@ -293,7 +326,8 @@ fun RegisterScreen(
                             if (authError != null) viewModel.clearAuthError()
                         },
                         label = { Text(Localization.t("age", currentLang)) },
-                        placeholder = { Text(if (currentLang == com.example.util.AppLanguage.ENGLISH) "e.g. 25 (Must be over 18)" else "ej. 25 (Mayor a 18 años)") },
+                        placeholder = { Text(if (currentLang == com.example.util.AppLanguage.ENGLISH) "e.g. 25 (Must be over ${securityPolicy.minAge})" else "ej. 25 (Mínimo ${securityPolicy.minAge} años)") },
+
                         leadingIcon = {
                             Icon(Icons.Default.Cake, contentDescription = null, tint = FinancePrimary)
                         },
@@ -597,6 +631,7 @@ fun RegisterScreen(
                             viewModel.register(
                                 firstNames = firstNames,
                                 lastNames = lastNames,
+                                username = username,
                                 ageStr = ageStr,
                                 phone = phone,
                                 countryConfig = selectedCountry,
@@ -608,6 +643,7 @@ fun RegisterScreen(
                                 onSuccess = onRegisterSuccess
                             )
                         },
+
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = FinancePrimary,

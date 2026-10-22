@@ -8,7 +8,9 @@ import com.example.data.local.BillReminderEntity
 import com.example.data.local.BudgetEntity
 import com.example.data.local.CategoryEntity
 import com.example.data.local.FinancialAccountEntity
+import com.example.data.local.FinancialInstitutionEntity
 import com.example.data.local.SavingsGoalEntity
+import com.example.data.local.SecurityPolicyEntity
 import com.example.data.local.TransactionEntity
 import com.example.data.local.UserEntity
 import com.example.data.model.CategoryDataHierarchy
@@ -176,6 +178,33 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     private val _allUsers = MutableStateFlow<List<UserEntity>>(emptyList())
     val allUsers: StateFlow<List<UserEntity>> = _allUsers.asStateFlow()
 
+    // --- Catálogo de Instituciones Financieras (Bancos y Billeteras) ---
+    private val _financialInstitutions = MutableStateFlow<List<FinancialInstitutionEntity>>(emptyList())
+    val financialInstitutions: StateFlow<List<FinancialInstitutionEntity>> = _financialInstitutions.asStateFlow()
+
+    private val _activeFinancialInstitutions = MutableStateFlow<List<FinancialInstitutionEntity>>(emptyList())
+    val activeFinancialInstitutions: StateFlow<List<FinancialInstitutionEntity>> = _activeFinancialInstitutions.asStateFlow()
+
+    // --- Directivas de Seguridad Globales ---
+    private val _securityPolicy = MutableStateFlow(
+        SecurityPolicyEntity(
+            id = 1,
+            maxLoginAttempts = 3,
+            lockoutDurationSeconds = 300,
+            passwordMinLength = 8,
+            passwordMaxLength = 20,
+            requireUppercase = true,
+            requireLowercase = false,
+            requireNumber = true,
+            requireSpecialChar = true,
+            minAge = 18,
+            maxNameLength = 70,
+            requireCapitalizedNames = true
+        )
+    )
+    val securityPolicy: StateFlow<SecurityPolicyEntity> = _securityPolicy.asStateFlow()
+
+
     // --- Financial Summary & Charts ---
     private val _financialSummary = MutableStateFlow(
         FinancialSummary(0.0, 0.0, 0.0, 0.0, 0.0, emptyList(), emptyList())
@@ -323,7 +352,25 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                 _allUsers.value = it
             }
         }
+        viewModelScope.launch {
+            repository.getAllFinancialInstitutions().collectLatest {
+                _financialInstitutions.value = it
+            }
+        }
+        viewModelScope.launch {
+            repository.getActiveFinancialInstitutions().collectLatest {
+                _activeFinancialInstitutions.value = it
+            }
+        }
+        viewModelScope.launch {
+            repository.getSecurityPolicy().collectLatest { policy ->
+                if (policy != null) {
+                    _securityPolicy.value = policy
+                }
+            }
+        }
     }
+
 
     private fun observeUserData(userId: Long) {
         viewModelScope.launch {
@@ -366,15 +413,19 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
     // --- Auth Methods ---
     fun login(identifier: String, password: String, onResult: ((Boolean) -> Unit)? = null): Boolean {
+        val policy = _securityPolicy.value
+        val maxAttempts = policy.maxLoginAttempts
+        val lockoutSecs = policy.lockoutDurationSeconds
+
         // 1. Check if user is currently locked out
         if (_lockoutRemainingSeconds.value > 0) {
             val minutes = _lockoutRemainingSeconds.value / 60
             val seconds = _lockoutRemainingSeconds.value % 60
             val timeFormatted = String.format("%02d:%02d", minutes, seconds)
             _authError.value = if (_currentLanguage.value == AppLanguage.SPANISH) {
-                "Has ingresado credenciales incorrectas 3 veces. Debes esperar 5 minutos para volver a intentar (Tiempo restante: $timeFormatted)."
+                "Has ingresado credenciales incorrectas $maxAttempts veces. Debes esperar ${lockoutSecs / 60} minutos para volver a intentar (Tiempo restante: $timeFormatted)."
             } else {
-                "You have entered incorrect credentials 3 times. Please wait 5 minutes before trying again (Remaining time: $timeFormatted)."
+                "You have entered incorrect credentials $maxAttempts times. Please wait ${lockoutSecs / 60} minutes before trying again (Remaining time: $timeFormatted)."
             }
             onResult?.invoke(false)
             return false
@@ -394,29 +445,23 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             return false
         }
 
-        // Validate email format if identifier contains @
-        if (id.contains("@") && !Validators.isValidEmail(id)) {
-            _authError.value = if (_currentLanguage.value == AppLanguage.SPANISH) {
-                "El correo electrónico debe tener el formato 'usuario@dominio.com'."
-            } else {
-                "Email must follow the format 'user@domain.com'."
-            }
-            onResult?.invoke(false)
-            return false
-        }
-
-        // Validate password rules
-        val (isPwdValid, pwdErr) = Validators.isValidPassword(pwd)
-        if (!isPwdValid) {
-            _authError.value = pwdErr
-            onResult?.invoke(false)
-            return false
-        }
-
         var loggedIn = false
         viewModelScope.launch {
-            val user = repository.getUserByEmail(id)
+            // Permite iniciar sesión tanto con correo electrónico como con nombre de usuario
+            val user = repository.getUserByIdentifier(id) ?: repository.getUserByEmail(id)
             if (user != null && user.passwordHash == pwd) {
+                // Verificar si la cuenta ha sido suspendida o bloqueada por el administrador
+                if (user.isBlocked) {
+                    val reasonSuffix = if (user.statusReason.isNotBlank()) " Motivo: ${user.statusReason}" else ""
+                    _authError.value = if (_currentLanguage.value == AppLanguage.SPANISH) {
+                        "Su cuenta se encuentra suspendida o bloqueada por el administrador.$reasonSuffix"
+                    } else {
+                        "Your account has been suspended or blocked by the administrator.$reasonSuffix"
+                    }
+                    onResult?.invoke(false)
+                    return@launch
+                }
+
                 _currentUser.value = user
                 _failedLoginAttempts.value = 0
                 _lockoutRemainingSeconds.value = 0
@@ -429,13 +474,13 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                 onResult?.invoke(true)
             } else {
                 _failedLoginAttempts.value += 1
-                if (_failedLoginAttempts.value >= 3) {
-                    startLockoutTimer()
+                if (_failedLoginAttempts.value >= maxAttempts) {
+                    startLockoutTimer(maxAttempts, lockoutSecs)
                 } else {
                     _authError.value = if (_currentLanguage.value == AppLanguage.SPANISH) {
-                        "Credenciales incorrectas. Verifique su correo y contraseña. (Intento ${_failedLoginAttempts.value} de 3)"
+                        "Credenciales incorrectas. Verifique su usuario/correo y contraseña. (Intento ${_failedLoginAttempts.value} de $maxAttempts)"
                     } else {
-                        "Incorrect credentials. Please verify your email and password. (Attempt ${_failedLoginAttempts.value} of 3)"
+                        "Incorrect credentials. Please verify your username/email and password. (Attempt ${_failedLoginAttempts.value} of $maxAttempts)"
                     }
                 }
                 onResult?.invoke(false)
@@ -444,13 +489,16 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         return loggedIn
     }
 
-    private fun startLockoutTimer() {
+    private fun startLockoutTimer(maxAttempts: Int, lockoutSecs: Int) {
         _failedLoginAttempts.value = 0
-        _lockoutRemainingSeconds.value = 300 // 5 minutes
+        _lockoutRemainingSeconds.value = lockoutSecs
+        val mInit = lockoutSecs / 60
+        val sInit = lockoutSecs % 60
+        val timeFormattedInit = String.format("%02d:%02d", mInit, sInit)
         val msg = if (_currentLanguage.value == AppLanguage.SPANISH) {
-            "Has ingresado credenciales incorrectas 3 veces seguidas. Por seguridad, debes esperar 5 minutos para volver a intentar (Tiempo restante: 05:00)."
+            "Has ingresado credenciales incorrectas $maxAttempts veces seguidas. Por seguridad, debes esperar $mInit minutos para volver a intentar (Tiempo restante: $timeFormattedInit)."
         } else {
-            "You have entered incorrect credentials 3 times. For security, please wait 5 minutes before trying again (Remaining time: 05:00)."
+            "You have entered incorrect credentials $maxAttempts times. For security, please wait $mInit minutes before trying again (Remaining time: $timeFormattedInit)."
         }
         _authError.value = msg
         lockoutJob?.cancel()
@@ -463,9 +511,9 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                     val s = _lockoutRemainingSeconds.value % 60
                     val timeFormatted = String.format("%02d:%02d", m, s)
                     _authError.value = if (_currentLanguage.value == AppLanguage.SPANISH) {
-                        "Has ingresado credenciales incorrectas 3 veces seguidas. Por seguridad, debes esperar 5 minutos para volver a intentar (Tiempo restante: $timeFormatted)."
+                        "Has ingresado credenciales incorrectas $maxAttempts veces seguidas. Por seguridad, debes esperar $m minutos para volver a intentar (Tiempo restante: $timeFormatted)."
                     } else {
-                        "You have entered incorrect credentials 3 times. For security, please wait 5 minutes before trying again (Remaining time: $timeFormatted)."
+                        "You have entered incorrect credentials $maxAttempts times. For security, please wait $m minutes before trying again (Remaining time: $timeFormatted)."
                     }
                 }
             }
@@ -476,6 +524,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     fun register(
         firstNames: String,
         lastNames: String,
+        username: String = "",
         ageStr: String,
         phone: String,
         countryConfig: CountryPhoneConfig = CountryPhoneData.americanCountries.first(),
@@ -487,79 +536,78 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         onSuccess: () -> Unit
     ) {
         _authError.value = null
+        val policy = _securityPolicy.value
 
-        // 1. First names validation with 70-character max limit
-        if (firstNames.length > 70) {
-            _authError.value = if (_currentLanguage.value == AppLanguage.SPANISH) {
-                "Has alcanzado el límite máximo de 70 caracteres para los nombres."
-            } else {
-                "You have reached the maximum limit of 70 characters for first names."
-            }
-            return
-        }
-        val (isFirstValid, firstErr) = Validators.validateName(firstNames, isLastName = false)
+        // 1. Validación de nombres con longitud y mayúsculas de directiva activa
+        val (isFirstValid, firstErr) = Validators.validateNameWithPolicy(firstNames, isLastName = false, policy = policy)
         if (!isFirstValid) {
             _authError.value = firstErr
             return
         }
 
-        // 2. Last names validation with 70-character max limit
-        if (lastNames.length > 70) {
-            _authError.value = if (_currentLanguage.value == AppLanguage.SPANISH) {
-                "Has alcanzado el límite máximo de 70 caracteres para los apellidos."
-            } else {
-                "You have reached the maximum limit of 70 characters for last names."
-            }
-            return
-        }
-        val (isLastValid, lastErr) = Validators.validateName(lastNames, isLastName = true)
+        // 2. Validación de apellidos con directiva activa
+        val (isLastValid, lastErr) = Validators.validateNameWithPolicy(lastNames, isLastName = true, policy = policy)
         if (!isLastValid) {
             _authError.value = lastErr
             return
         }
 
-        // 3. Age validation (> 18)
-        val (isAgeValid, ageErr) = Validators.isValidAge(ageStr)
+        // 3. Validación de nombre de usuario (username)
+        val (isUserValid, userErr) = Validators.validateUsername(username)
+        if (!isUserValid) {
+            _authError.value = userErr
+            return
+        }
+
+        // 4. Validación de edad de acuerdo con directiva de seguridad
+        val (isAgeValid, ageErr) = Validators.isValidAgeWithPolicy(ageStr, policy = policy)
         if (!isAgeValid) {
             _authError.value = ageErr
             return
         }
 
-        // 4. Phone validation according to selected country specification
+        // 5. Validación de teléfono según país seleccionado
         val (isPhoneValid, phoneErr) = CountryPhoneData.validatePhone(countryConfig, phone)
         if (!isPhoneValid) {
             _authError.value = phoneErr
             return
         }
 
-        // 5. Email validation
+        // 6. Validación de formato de correo electrónico
         if (!Validators.isValidEmail(email)) {
             _authError.value = "El correo electrónico no es válido. Formato requerido: 'usuario@dominio.com'."
             return
         }
 
-        // 6. Password validation
-        val (isPwdValid, pwdErr) = Validators.isValidPassword(password)
+        // 7. Validación de contraseña según directiva de seguridad vigente
+        val (isPwdValid, pwdErr) = Validators.isValidPasswordWithPolicy(password, policy = policy)
         if (!isPwdValid) {
             _authError.value = pwdErr
             return
         }
 
-        // 7. Password confirmation match
+        // 8. Coincidencia de confirmación de contraseña
         if (password != confirmPassword) {
             _authError.value = "La confirmación de contraseña no coincide con la contraseña ingresada."
             return
         }
 
         viewModelScope.launch {
-            // Check email uniqueness in DB
+            // Verificar unicidad del nombre de usuario en la base de datos
+            val existingUsername = repository.getUserByUsername(username)
+            if (existingUsername != null) {
+                _authError.value = "El nombre de usuario ya está registrado en la base de datos. Por favor elija otro."
+                return@launch
+            }
+
+            // Verificar unicidad de correo electrónico
             val existingEmail = repository.getUserByEmail(email)
             if (existingEmail != null) {
                 _authError.value = "El correo electrónico ingresado ya está registrado en la base de datos."
                 return@launch
             }
 
-            // Check phone uniqueness in DB (without revealing other user's name)
+            // Verificar unicidad de número telefónico
             val cleanDigits = phone.filter { it.isDigit() }
             val existingPhone = repository.getUserByPhone(cleanDigits) ?: repository.getUserByPhone("${countryConfig.dialPrefix}$cleanDigits")
             if (existingPhone != null) {
@@ -570,15 +618,15 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             val newUser = UserEntity(
                 firstName = firstNames.trim(),
                 lastName = lastNames.trim(),
+                username = username.trim().lowercase(Locale.ROOT),
                 age = ageStr.toInt(),
                 phone = cleanDigits,
                 phonePrefix = countryConfig.dialPrefix,
-                email = email.trim().lowercase(),
+                email = email.trim().lowercase(Locale.ROOT),
                 passwordHash = password.trim(),
                 role = role,
                 preferredCurrency = "${preferredCurrency.symbol} ${preferredCurrency.code}"
             )
-
             val newId = repository.registerUser(newUser)
             val created = repository.getUserById(newId)
             _currentUser.value = created
@@ -587,6 +635,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             onSuccess()
         }
     }
+
 
     // --- Incomes and Expenses Advanced Movement ---
     fun addMovement(
@@ -1047,6 +1096,214 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             repository.deleteUser(user)
         }
     }
+
+    /**
+     * Alterna el estado de bloqueo/suspensión de un usuario con motivo obligatorio.
+     * Si el administrador intenta suspender su propia cuenta, retorna error explícito.
+     * Si el motivo está vacío, retorna error obligatorio.
+     */
+    fun toggleUserBlockWithReason(
+        targetUser: UserEntity,
+        reason: String,
+        onResult: (Boolean, String?) -> Unit
+    ) {
+        val current = _currentUser.value
+        if (current != null && current.id == targetUser.id) {
+            onResult(false, "No puede auto - suspender o eliminar su cuenta activa de administración")
+            return
+        }
+        if (reason.trim().isBlank()) {
+            onResult(false, "El motivo no debe estar vacío antes de realizar la acción")
+            return
+        }
+        viewModelScope.launch {
+            val updated = targetUser.copy(
+                isBlocked = !targetUser.isBlocked,
+                statusReason = reason.trim()
+            )
+            repository.updateUser(updated)
+            onResult(true, null)
+        }
+    }
+
+    /**
+     * Elimina definitivamente a un usuario del sistema con motivo obligatorio.
+     * Si el administrador intenta eliminar su propia cuenta activa, retorna error explícito.
+     * Si el motivo queda vacío, no permite la eliminación.
+     */
+    fun deleteUserWithReason(
+        targetUser: UserEntity,
+        reason: String,
+        onResult: (Boolean, String?) -> Unit
+    ) {
+        val current = _currentUser.value
+        if (current != null && current.id == targetUser.id) {
+            onResult(false, "No puede auto - suspender o eliminar su cuenta activa de administración")
+            return
+        }
+        if (reason.trim().isBlank()) {
+            onResult(false, "El motivo no debe estar vacío antes de realizar la acción")
+            return
+        }
+        viewModelScope.launch {
+            repository.deleteUser(targetUser)
+            onResult(true, null)
+        }
+    }
+
+    /**
+     * Obtiene el listado de cuentas y billeteras asociadas a un usuario específico
+     * para revisión detallada por parte del Administrador.
+     */
+    suspend fun getUserAccountsList(userId: Long): List<FinancialAccountEntity> {
+        return repository.getFinancialAccountsList(userId)
+    }
+
+    // --- Catálogo de Instituciones Financieras (Admin) ---
+
+    /**
+     * Agrega una nueva entidad financiera (Banco o Billetera) al catálogo del sistema.
+     * Valida país de origen, nombre completo, abreviatura y el banco compatible en caso de ser billetera.
+     */
+    fun addFinancialInstitution(
+        country: String,
+        fullName: String,
+        abbreviation: String,
+        type: String,
+        supportedBankBrands: String,
+        onResult: (Boolean, String?) -> Unit
+    ) {
+        if (country.trim().isBlank()) {
+            onResult(false, "El país de origen de la entidad es obligatorio.")
+            return
+        }
+        if (fullName.trim().isBlank()) {
+            onResult(false, "El nombre completo de la entidad es obligatorio.")
+            return
+        }
+        if (type == "BILLETERA" && supportedBankBrands.trim().isBlank()) {
+            onResult(false, "Debe seleccionar un banco compatible para la billetera digital.")
+            return
+        }
+        viewModelScope.launch {
+            val entity = FinancialInstitutionEntity(
+                country = country.trim(),
+                fullName = fullName.trim(),
+                abbreviation = abbreviation.trim(),
+                type = type,
+                supportedBankBrands = if (type == "BILLETERA") supportedBankBrands.trim() else "",
+                isActive = true,
+                statusReason = ""
+            )
+            repository.insertInstitution(entity)
+            onResult(true, null)
+        }
+    }
+
+    /**
+     * Desactiva una institución financiera del catálogo.
+     * Exige un motivo obligatorio; si queda vacío no permite la desactivación.
+     */
+    fun deactivateFinancialInstitution(
+        institution: FinancialInstitutionEntity,
+        reason: String,
+        onResult: (Boolean, String?) -> Unit
+    ) {
+        if (reason.trim().isBlank()) {
+            onResult(false, "El motivo de desactivación no puede estar vacío.")
+            return
+        }
+        viewModelScope.launch {
+            repository.updateInstitution(
+                institution.copy(
+                    isActive = false,
+                    statusReason = reason.trim()
+                )
+            )
+            onResult(true, null)
+        }
+    }
+
+    /**
+     * Reactiva una institución financiera previamente desactivada en cualquier momento.
+     */
+    fun reactivateFinancialInstitution(
+        institution: FinancialInstitutionEntity,
+        reason: String = "",
+        onResult: (Boolean, String?) -> Unit
+    ) {
+        viewModelScope.launch {
+            repository.updateInstitution(
+                institution.copy(
+                    isActive = true,
+                    statusReason = reason.trim().ifEmpty { "Reactivada por el administrador" }
+                )
+            )
+            onResult(true, null)
+        }
+    }
+
+    /**
+     * Elimina definitivamente una institución financiera del catálogo.
+     */
+    fun deleteFinancialInstitution(
+        institution: FinancialInstitutionEntity,
+        reason: String,
+        onResult: (Boolean, String?) -> Unit
+    ) {
+        if (reason.trim().isBlank()) {
+            onResult(false, "El motivo de eliminación no puede estar vacío.")
+            return
+        }
+        viewModelScope.launch {
+            repository.deleteInstitution(institution)
+            onResult(true, null)
+        }
+    }
+
+    // --- Directivas de Seguridad (Admin) ---
+
+    /**
+     * Ajusta las directivas de seguridad globales de la aplicación.
+     * Valida exhaustivamente que ningún parámetro sea negativo o inválido antes de guardar.
+     * Actualiza la base de datos y propaga la nueva directiva en tiempo real para todos los usuarios.
+     */
+    fun updateSecurityPolicy(
+        newPolicy: SecurityPolicyEntity,
+        onResult: (Boolean, String?) -> Unit
+    ) {
+        if (newPolicy.maxLoginAttempts <= 0) {
+            onResult(false, "El número de intentos de inicio de sesión no puede ser negativo ni 0.")
+            return
+        }
+        if (newPolicy.lockoutDurationSeconds <= 0) {
+            onResult(false, "El tiempo de bloqueo no puede ser negativo ni 0.")
+            return
+        }
+        if (newPolicy.passwordMinLength < 4) {
+            onResult(false, "La longitud mínima de contraseña debe ser de al menos 4 caracteres.")
+            return
+        }
+        if (newPolicy.passwordMaxLength < newPolicy.passwordMinLength) {
+            onResult(false, "La longitud máxima de contraseña no puede ser menor a la longitud mínima.")
+            return
+        }
+        if (newPolicy.minAge <= 0) {
+            onResult(false, "La edad mínima no puede ser negativa ni 0.")
+            return
+        }
+        if (newPolicy.maxNameLength <= 0) {
+            onResult(false, "La longitud máxima de nombres no puede ser negativa ni 0.")
+            return
+        }
+
+        viewModelScope.launch {
+            repository.saveSecurityPolicy(newPolicy)
+            _securityPolicy.value = newPolicy
+            onResult(true, null)
+        }
+    }
+
 
     // --- AI Assistant ---
     fun sendAiMessage(promptText: String) {

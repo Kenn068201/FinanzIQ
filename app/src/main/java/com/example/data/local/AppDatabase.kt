@@ -17,9 +17,11 @@ import kotlinx.coroutines.launch
         SavingsGoalEntity::class,
         BillReminderEntity::class,
         CategoryEntity::class,
-        FinancialAccountEntity::class
+        FinancialAccountEntity::class,
+        FinancialInstitutionEntity::class,
+        SecurityPolicyEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -30,6 +32,9 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun billReminderDao(): BillReminderDao
     abstract fun categoryDao(): CategoryDao
     abstract fun financialAccountDao(): FinancialAccountDao
+    abstract fun financialInstitutionDao(): FinancialInstitutionDao
+    abstract fun securityPolicyDao(): SecurityPolicyDao
+
 
     companion object {
         @Volatile
@@ -75,6 +80,114 @@ abstract class AppDatabase : RoomDatabase() {
             val goalDao = db.savingsGoalDao()
             val billDao = db.billReminderDao()
             val accountDao = db.financialAccountDao()
+            val institutionDao = db.financialInstitutionDao()
+            val policyDao = db.securityPolicyDao()
+
+            // Inicialización de directiva de seguridad global por defecto
+            policyDao.insertOrUpdatePolicy(
+                SecurityPolicyEntity(
+                    id = 1,
+                    maxLoginAttempts = 3,
+                    lockoutDurationSeconds = 300,
+                    passwordMinLength = 8,
+                    passwordMaxLength = 20,
+                    requireUppercase = true,
+                    requireLowercase = false,
+                    requireNumber = true,
+                    requireSpecialChar = true,
+                    minAge = 18,
+                    maxNameLength = 70,
+                    requireCapitalizedNames = true
+                )
+            )
+
+            // Catálogo inicial de Instituciones Financieras (Bancos y Billeteras) de Nicaragua
+            val initialInstitutions = listOf(
+                FinancialInstitutionEntity(
+                    country = "Nicaragua",
+                    fullName = "BANPRO Grupo Promerica",
+                    abbreviation = "BANPRO",
+                    type = "BANCO",
+                    isActive = true
+                ),
+                FinancialInstitutionEntity(
+                    country = "Nicaragua",
+                    fullName = "BAC Credomatic Nicaragua",
+                    abbreviation = "BAC",
+                    type = "BANCO",
+                    isActive = true
+                ),
+                FinancialInstitutionEntity(
+                    country = "Nicaragua",
+                    fullName = "Banco LAFISE BANCENTRO",
+                    abbreviation = "LAFISE",
+                    type = "BANCO",
+                    isActive = true
+                ),
+                FinancialInstitutionEntity(
+                    country = "Nicaragua",
+                    fullName = "Banco de Finanzas (BDF)",
+                    abbreviation = "BDF",
+                    type = "BANCO",
+                    isActive = true
+                ),
+                FinancialInstitutionEntity(
+                    country = "Nicaragua",
+                    fullName = "Banco FICOHSA Nicaragua",
+                    abbreviation = "FICOHSA",
+                    type = "BANCO",
+                    isActive = true
+                ),
+                FinancialInstitutionEntity(
+                    country = "Nicaragua",
+                    fullName = "Banco AVANZ",
+                    abbreviation = "AVANZ",
+                    type = "BANCO",
+                    isActive = true
+                ),
+                // Billeteras digitales vinculadas a bancos específicos
+                FinancialInstitutionEntity(
+                    country = "Nicaragua",
+                    fullName = "Billetera Móvil Banpro",
+                    abbreviation = "Banpro Móvil",
+                    type = "BILLETERA",
+                    supportedBankBrands = "BANPRO",
+                    isActive = true
+                ),
+                FinancialInstitutionEntity(
+                    country = "Nicaragua",
+                    fullName = "Billetera Móvil LAFISE",
+                    abbreviation = "LAFISE Móvil",
+                    type = "BILLETERA",
+                    supportedBankBrands = "LAFISE",
+                    isActive = true
+                ),
+                FinancialInstitutionEntity(
+                    country = "Nicaragua",
+                    fullName = "Kash BAC Nicaragua",
+                    abbreviation = "Kash BAC",
+                    type = "BILLETERA",
+                    supportedBankBrands = "BAC",
+                    isActive = true
+                ),
+                FinancialInstitutionEntity(
+                    country = "Nicaragua",
+                    fullName = "Billetera Móvil BDF",
+                    abbreviation = "BDF Móvil",
+                    type = "BILLETERA",
+                    supportedBankBrands = "BDF",
+                    isActive = true
+                ),
+                FinancialInstitutionEntity(
+                    country = "Nicaragua",
+                    fullName = "Billetera Móvil Ficohsa",
+                    abbreviation = "Ficohsa Móvil",
+                    type = "BILLETERA",
+                    supportedBankBrands = "FICOHSA",
+                    isActive = true
+                )
+            )
+            institutionDao.insertInstitutions(initialInstitutions)
 
             // Categorías por defecto del sistema
             val defaultCategories = listOf(
@@ -99,6 +212,7 @@ abstract class AppDatabase : RoomDatabase() {
                 UserEntity(
                     firstName = "Carlos",
                     lastName = "Mendoza",
+                    username = "admin",
                     age = 32,
                     phone = "88997766",
                     email = "admin@finanzas.com",
@@ -112,6 +226,7 @@ abstract class AppDatabase : RoomDatabase() {
                 UserEntity(
                     firstName = "Elena",
                     lastName = "Gómez",
+                    username = "elena.gomez",
                     age = 26,
                     phone = "77889900",
                     email = "elena@finanzas.com",
@@ -119,6 +234,7 @@ abstract class AppDatabase : RoomDatabase() {
                     role = "USER"
                 )
             )
+
 
             // Cuentas y billeteras con formato de Nicaragua para Elena Gómez (Tel: 77889900)
             val elenaAccounts = listOf(

@@ -9,15 +9,19 @@ data class UserEntity(
     val id: Long = 0,
     val firstName: String,
     val lastName: String,
+    val username: String = "", // Nombre de usuario único para inicio de sesión y gestión en panel de admin
     val age: Int,
     val phone: String,
     val phonePrefix: String = "+505",
     val email: String,
     val passwordHash: String,
     val role: String = "USER", // "USER" o "ADMIN"
+    val isBlocked: Boolean = false, // Indica si el usuario ha sido suspendido o bloqueado por el administrador
+    val statusReason: String = "", // Motivo obligatorio registrado por el admin al bloquear o reactivar
     val preferredCurrency: String = "C$ NIO",
     val createdAt: Long = System.currentTimeMillis()
 )
+
 
 @Entity(tableName = "transactions")
 data class TransactionEntity(
@@ -111,3 +115,46 @@ data class FinancialAccountEntity(
     val isActive: Boolean = true, // true: Activa, false: Deshabilitada
     val createdAt: Long = System.currentTimeMillis()
 )
+
+/**
+ * Entidad que representa el catálogo de Instituciones Financieras (Bancos y Billeteras Digitales).
+ * Permite al Administrador gestionar las entidades disponibles en la aplicación, desactivarlas con un motivo
+ * obligatorio o crear nuevas entidades especificando país de origen, nombre completo, abreviatura y banco compatible.
+ */
+@Entity(tableName = "financial_institutions")
+data class FinancialInstitutionEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
+    val country: String, // País de origen de la entidad (ej. Nicaragua, Estados Unidos, etc.)
+    val fullName: String, // Nombre completo de la entidad financiera
+    val abbreviation: String = "", // Abreviatura opcional (ej. BAC, BANPRO, BDF)
+    val type: String, // Tipo de entidad: "BANCO" o "BILLETERA"
+    val supportedBankBrands: String = "", // Si es billetera: nombre o marca del banco compatible al cual se puede vincular
+    val isActive: Boolean = true, // true: Disponible para vincular, false: Desactivada por admin
+    val statusReason: String = "", // Motivo de la desactivación o activación ingresado por el administrador
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+/**
+ * Entidad de Directivas de Seguridad Globales de la Aplicación.
+ * Permite al administrador ajustar parámetros de autenticación, bloqueo temporal por intentos fallidos,
+ * y reglas de validación de contraseñas y registro de usuarios para toda la plataforma.
+ */
+@Entity(tableName = "security_policies")
+data class SecurityPolicyEntity(
+    @PrimaryKey
+    val id: Long = 1,
+    val maxLoginAttempts: Int = 3, // Intentos fallidos antes del bloqueo temporal
+    val lockoutDurationSeconds: Int = 300, // Duración del bloqueo en segundos (300s = 5 minutos)
+    val passwordMinLength: Int = 8, // Longitud mínima de contraseña
+    val passwordMaxLength: Int = 20, // Longitud máxima de contraseña
+    val requireUppercase: Boolean = true, // Requerir al menos una letra mayúscula
+    val requireLowercase: Boolean = false, // Requerir al menos una letra minúscula
+    val requireNumber: Boolean = true, // Requerir al menos un número
+    val requireSpecialChar: Boolean = true, // Requerir al menos un carácter especial
+    val minAge: Int = 18, // Edad mínima de registro
+    val maxNameLength: Int = 70, // Longitud máxima permitida para nombres y apellidos
+    val requireCapitalizedNames: Boolean = true, // Exigir primera letra mayúscula en nombres y apellidos
+    val updatedAt: Long = System.currentTimeMillis()
+)
+
