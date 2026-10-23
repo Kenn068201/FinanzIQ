@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
@@ -40,6 +41,8 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Warning
@@ -92,6 +95,7 @@ import com.example.ui.theme.FinanceOnPrimary
 import com.example.ui.theme.FinancePrimary
 import com.example.ui.theme.FinanceSecondaryContainer
 import com.example.ui.theme.FinanceSuccess
+import com.example.util.Localization
 import java.util.Locale
 
 /**
@@ -125,7 +129,16 @@ fun AdminScreen(
     val securityPolicy by viewModel.securityPolicy.collectAsState()
     val currentUser by viewModel.currentUser.collectAsState()
 
-    // 0: Entidades, 1: Usuarios, 2: Seguridad, 3: Categorías
+    // Estados de Auditoría, Monitor de APIs y Versiones
+    val auditLogs by viewModel.auditLogs.collectAsState()
+    val apiStatusList by viewModel.apiStatusList.collectAsState()
+    val apiErrorAlert by viewModel.apiErrorAlert.collectAsState()
+    val isApiDiagnosing by viewModel.isApiDiagnosing.collectAsState()
+    val appVersions by viewModel.appVersions.collectAsState()
+    val latestAppVersion by viewModel.latestAppVersion.collectAsState()
+    val clientAppVersion by viewModel.clientAppVersion.collectAsState()
+
+    // 0: Entidades, 1: Usuarios, 2: Auditoría, 3: Monitor APIs, 4: Versiones, 5: Seguridad, 6: Categorías
     var selectedTab by remember { mutableIntStateOf(0) }
 
     // Control de diálogos de Instituciones
@@ -158,7 +171,7 @@ fun AdminScreen(
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            text = "Panel de Administrador",
+                            text = Localization.t("admin_title", lang),
                             style = MaterialTheme.typography.titleLarge.copy(
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF111827)
@@ -181,7 +194,7 @@ fun AdminScreen(
                         Icon(Icons.Default.AccountBalance, contentDescription = "Nueva Entidad")
                     }
                 }
-                3 -> {
+                6 -> {
                     FloatingActionButton(
                         onClick = { showAddCategoryDialog = true },
                         containerColor = FinancePrimary,
@@ -202,7 +215,7 @@ fun AdminScreen(
                 .padding(innerPadding)
                 .padding(horizontal = 16.dp)
         ) {
-            // Selector de Pestañas
+            // Selector de Pestañas internacionalizado según el idioma seleccionado
             ScrollableTabRow(
                 selectedTabIndex = selectedTab,
                 containerColor = FinanceBackground,
@@ -212,25 +225,43 @@ fun AdminScreen(
                 Tab(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
-                    text = { Text("Entidades (${institutions.size})", fontWeight = FontWeight.Bold) },
+                    text = { Text("${Localization.t("admin_tab_institutions", lang)} (${institutions.size})", fontWeight = FontWeight.Bold) },
                     icon = { Icon(Icons.Default.AccountBalance, contentDescription = null) }
                 )
                 Tab(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    text = { Text("Usuarios (${users.size})", fontWeight = FontWeight.Bold) },
+                    text = { Text("${Localization.t("admin_tab_users", lang)} (${users.size})", fontWeight = FontWeight.Bold) },
                     icon = { Icon(Icons.Default.Group, contentDescription = null) }
                 )
                 Tab(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
-                    text = { Text("Seguridad", fontWeight = FontWeight.Bold) },
-                    icon = { Icon(Icons.Default.Security, contentDescription = null) }
+                    text = { Text("${Localization.t("admin_tab_audit", lang)} (${auditLogs.size})", fontWeight = FontWeight.Bold) },
+                    icon = { Icon(Icons.Default.History, contentDescription = null) }
                 )
                 Tab(
                     selected = selectedTab == 3,
                     onClick = { selectedTab = 3 },
-                    text = { Text("Categorías (${categories.size})", fontWeight = FontWeight.Bold) },
+                    text = { Text(Localization.t("admin_tab_api_monitor", lang), fontWeight = FontWeight.Bold) },
+                    icon = { Icon(Icons.Default.Speed, contentDescription = null) }
+                )
+                Tab(
+                    selected = selectedTab == 4,
+                    onClick = { selectedTab = 4 },
+                    text = { Text("${Localization.t("admin_tab_versions", lang)} (${appVersions.size})", fontWeight = FontWeight.Bold) },
+                    icon = { Icon(Icons.Default.SystemUpdate, contentDescription = null) }
+                )
+                Tab(
+                    selected = selectedTab == 5,
+                    onClick = { selectedTab = 5 },
+                    text = { Text(Localization.t("admin_tab_security", lang), fontWeight = FontWeight.Bold) },
+                    icon = { Icon(Icons.Default.Security, contentDescription = null) }
+                )
+                Tab(
+                    selected = selectedTab == 6,
+                    onClick = { selectedTab = 6 },
+                    text = { Text("${Localization.t("admin_tab_categories", lang)} (${categories.size})", fontWeight = FontWeight.Bold) },
                     icon = { Icon(Icons.Default.Category, contentDescription = null) }
                 )
             }
@@ -315,6 +346,31 @@ fun AdminScreen(
                     )
                 }
                 2 -> {
+                    AuditManagementSection(
+                        auditLogs = auditLogs
+                    )
+                }
+                3 -> {
+                    ApiMonitorSection(
+                        apiStatusList = apiStatusList,
+                        apiErrorAlert = apiErrorAlert,
+                        isDiagnosing = isApiDiagnosing,
+                        onQueryApis = { viewModel.runApiDiagnostics() },
+                        onSimulateFailure = { viewModel.simulateApiFailure() },
+                        onResetMetrics = { viewModel.resetApiMetrics() }
+                    )
+                }
+                4 -> {
+                    VersionControlSection(
+                        versions = appVersions,
+                        latestVersion = latestAppVersion,
+                        clientAppVersion = clientAppVersion,
+                        onPublishVersion = { versionNumber, releaseNotes, isMandatory, callback ->
+                            viewModel.publishAppVersion(versionNumber, releaseNotes, isMandatory, callback)
+                        }
+                    )
+                }
+                5 -> {
                     SecurityDirectivesSection(
                         currentPolicy = securityPolicy,
                         onSavePolicy = { updatedPolicy ->
@@ -328,7 +384,7 @@ fun AdminScreen(
                         }
                     )
                 }
-                3 -> {
+                6 -> {
                     CategoriesManagementSection(
                         categories = categories,
                         onDeleteCategory = { catId ->

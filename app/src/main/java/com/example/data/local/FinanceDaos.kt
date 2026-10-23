@@ -222,4 +222,67 @@ interface SecurityPolicyDao {
     suspend fun insertOrUpdatePolicy(policy: SecurityPolicyEntity)
 }
 
+/**
+ * DAO para la gestión de la Bitácora de Auditoría del Sistema.
+ * Permite registrar y consultar en tiempo real eventos como inicios de sesión (exitosos y fallidos),
+ * cambios en directivas de seguridad, modificaciones en proveedores y cambios de estado en usuarios.
+ */
+@Dao
+interface AuditLogDao {
+    @Query("SELECT * FROM audit_logs ORDER BY timestamp DESC")
+    fun getAllLogs(): Flow<List<AuditLogEntity>>
+
+    @Query("SELECT * FROM audit_logs WHERE eventType = :eventType ORDER BY timestamp DESC")
+    fun getLogsByType(eventType: String): Flow<List<AuditLogEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertLog(log: AuditLogEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertLogs(logs: List<AuditLogEntity>)
+
+    @Query("DELETE FROM audit_logs")
+    suspend fun clearLogs()
+}
+
+/**
+ * DAO para el Control de Versiones de la Aplicación.
+ * Permite al administrador publicar nuevas versiones, consultar el histórico de versiones
+ * y obtener la versión activa más reciente para sincronización con usuarios.
+ */
+@Dao
+interface AppVersionDao {
+    @Query("SELECT * FROM app_versions ORDER BY releaseDate DESC")
+    fun getAllVersions(): Flow<List<AppVersionEntity>>
+
+    @Query("SELECT * FROM app_versions ORDER BY releaseDate DESC LIMIT 1")
+    suspend fun getLatestVersion(): AppVersionEntity?
+
+    @Query("SELECT * FROM app_versions ORDER BY releaseDate DESC LIMIT 1")
+    fun getLatestVersionFlow(): Flow<AppVersionEntity?>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertVersion(version: AppVersionEntity): Long
+}
+
+/**
+ * DAO para el Monitor de APIs Integradas.
+ * Almacena métricas de latencia, código de estado y éxito/fallo para cálculo de tasas de error y uptime.
+ */
+@Dao
+interface ApiMetricDao {
+    @Query("SELECT * FROM api_metrics ORDER BY timestamp DESC LIMIT 200")
+    fun getRecentMetrics(): Flow<List<ApiMetricEntity>>
+
+    @Query("SELECT * FROM api_metrics WHERE timestamp >= :sinceTimestamp ORDER BY timestamp DESC")
+    suspend fun getMetricsSince(sinceTimestamp: Long): List<ApiMetricEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMetric(metric: ApiMetricEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMetrics(metrics: List<ApiMetricEntity>)
+}
+
+
 

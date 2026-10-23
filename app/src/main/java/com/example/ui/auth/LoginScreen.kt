@@ -519,6 +519,7 @@ fun LoginScreen(
                                 if (!isLockedOut) {
                                     identifier = "elena@finanzas.com"
                                     password = "Elena2026!"
+                                    viewModel.updateClientAppVersion("1.0.0")
                                     viewModel.login(identifier, password)
                                     onLoginSuccess()
                                 }

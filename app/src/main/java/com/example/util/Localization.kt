@@ -427,6 +427,13 @@ object Localization {
 
         // Administración
         "admin_title" to "Panel de Administración",
+        "admin_tab_institutions" to "Entidades",
+        "admin_tab_users" to "Usuarios",
+        "admin_tab_audit" to "Auditoría",
+        "admin_tab_api_monitor" to "Monitor APIs",
+        "admin_tab_versions" to "Versiones",
+        "admin_tab_security" to "Seguridad",
+        "admin_tab_categories" to "Categorías",
         "user_management" to "Gestión de Usuarios",
         "category_management" to "Gestión de Categorías",
         "role_admin" to "Administrador",
@@ -434,7 +441,15 @@ object Localization {
         "add_category" to "Nueva Categoría",
         "category_name" to "Nombre de la Categoría",
         "category_type" to "Tipo de Movimiento",
-        "delete_user_confirm" to "¿Estás seguro de eliminar este usuario?"
+        "delete_user_confirm" to "¿Estás seguro de eliminar este usuario?",
+        "quick_actions_title" to "Acciones Rápidas",
+        "savings_goals_title" to "Metas y Presupuesto",
+        "prediction_title" to "PREDICCIÓN MES",
+        "savings_rate_title" to "TASA DE AHORRO",
+        "bills_services_title" to "Pagos Próximos a Vencer",
+        "recent_movements_title" to "Movimientos Recientes",
+        "no_movements_yet" to "Aún no tienes movimientos registrados",
+        "app_update_announcement_sent" to "El anuncio de actualización fue enviado a los usuarios finales con éxito."
     )
 
     private val EN = mapOf(
@@ -474,9 +489,9 @@ object Localization {
         "language" to "Language",
 
         // Authentication & Interfaces
-        "login_title" to "Inicio de Sesión",
-        "login_button" to "Iniciar Sesión",
-        "username_or_email" to "Usuario o Correo electronico",
+        "login_title" to "Sign In",
+        "login_button" to "Sign In",
+        "username_or_email" to "Username or Email Address",
         "login" to "Sign In",
         "register" to "Sign Up",
         "register_title" to "User Registration",
@@ -841,6 +856,13 @@ object Localization {
 
         // Admin
         "admin_title" to "Admin Dashboard",
+        "admin_tab_institutions" to "Entities",
+        "admin_tab_users" to "Users",
+        "admin_tab_audit" to "Audit",
+        "admin_tab_api_monitor" to "API Monitor",
+        "admin_tab_versions" to "Versions",
+        "admin_tab_security" to "Security",
+        "admin_tab_categories" to "Categories",
         "user_management" to "User Management",
         "category_management" to "Category Management",
         "role_admin" to "Administrator",
@@ -848,6 +870,14 @@ object Localization {
         "add_category" to "New Category",
         "category_name" to "Category Name",
         "category_type" to "Movement Type",
-        "delete_user_confirm" to "Are you sure you want to delete this user?"
+        "delete_user_confirm" to "Are you sure you want to delete this user?",
+        "quick_actions_title" to "Quick Actions",
+        "savings_goals_title" to "Goals & Budget",
+        "prediction_title" to "MONTH FORECAST",
+        "savings_rate_title" to "SAVINGS RATE",
+        "bills_services_title" to "Upcoming Due Payments",
+        "recent_movements_title" to "Recent Transactions",
+        "no_movements_yet" to "No transactions recorded yet",
+        "app_update_announcement_sent" to "The update announcement was successfully sent to end users."
     )
 }

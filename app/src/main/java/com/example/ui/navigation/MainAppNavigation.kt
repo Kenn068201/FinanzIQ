@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Savings
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -63,8 +64,10 @@ import com.example.ui.auth.LoginScreen
 import com.example.ui.auth.RegisterScreen
 import com.example.ui.bills.BillsScreen
 import com.example.ui.budgets.BudgetsScreen
+import com.example.ui.components.AppUpdatePromptDialog
 import com.example.ui.dashboard.DashboardScreen
 import com.example.ui.savings.SavingsScreen
+import com.example.ui.settings.AppSettingsDialog
 import com.example.ui.theme.FinanceBackground
 import com.example.ui.theme.FinanceError
 import com.example.ui.theme.FinancePrimary
@@ -138,6 +141,12 @@ fun AuthenticatedAppScaffold(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: Screen.Dashboard.route
     var showUserMenu by remember { mutableStateOf(false) }
+
+    // Estados de control de versiones y diálogo de ajustes
+    val latestAppVersion by viewModel.latestAppVersion.collectAsState()
+    val clientAppVersion by viewModel.clientAppVersion.collectAsState()
+    var showAppSettingsDialog by remember { mutableStateOf(false) }
+    var dismissedOptionalVersion by remember { mutableStateOf<String?>(null) }
 
     var showQuickAddDialog by remember { mutableStateOf(false) }
     var quickAddType by remember { mutableStateOf("EXPENSE") }
@@ -232,6 +241,24 @@ fun AuthenticatedAppScaffold(
                                 }
                             },
                             onClick = { showUserMenu = false }
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Settings,
+                                        contentDescription = "Ajustes",
+                                        tint = FinancePrimary
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Ajustes y Preferencias", fontWeight = FontWeight.SemiBold)
+                                }
+                            },
+                            onClick = {
+                                showUserMenu = false
+                                showAppSettingsDialog = true
+                            },
+                            modifier = Modifier.testTag("menu_settings_button")
                         )
                         DropdownMenuItem(
                             text = {
@@ -442,6 +469,56 @@ fun AuthenticatedAppScaffold(
                         accountId = accountId
                     )
                     showQuickAddDialog = false
+                }
+            )
+        }
+
+        // Diálogo de Ajustes y Preferencias del Usuario Final
+        if (showAppSettingsDialog) {
+            AppSettingsDialog(
+                viewModel = viewModel,
+                onDismiss = { showAppSettingsDialog = false },
+                onLogout = {
+                    showAppSettingsDialog = false
+                    viewModel.logout()
+                }
+            )
+        }
+
+        /**
+         * Control y sincronización de versiones (Obligatoria / Opcional).
+         * 
+         * Qué hace:
+         * Evalúa si debe presentarse el diálogo de actualización de la aplicación al usuario.
+         * 
+         * Por qué se implementa de esta forma:
+         * Satisface estrictamente el Problema 4:
+         * "El aviso de actualizar obligatoriamente no debe salirle al administrador, únicamente al usuario final
+         * ya que los cambios que el implementa se le añaden automáticamente".
+         * Por ello, si currentUser?.role == "ADMIN", isEndUser es falso y el aviso nunca se muestra al administrador.
+         * Para el usuario final (role != "ADMIN"), si la actualización es obligatoria se despliega al iniciar sesión
+         * y bloquea las funciones hasta que el usuario pulsa "Actualizar", desbloqueándolas de inmediato.
+         * 
+         * Cómo se relaciona con el resto del código:
+         * Se comunica con AppUpdatePromptDialog y con FinanceViewModel.clientUpdateAppVersion(...)
+         * actualizando en tiempo real la versión del cliente.
+         */
+        val isEndUser = currentUser?.role != "ADMIN"
+        val shouldShowUpdateDialog = isEndUser && latestAppVersion != null &&
+            latestAppVersion!!.versionNumber != clientAppVersion &&
+            (latestAppVersion!!.isMandatory || dismissedOptionalVersion != latestAppVersion!!.versionNumber)
+
+        if (shouldShowUpdateDialog) {
+            AppUpdatePromptDialog(
+                latestVersion = latestAppVersion,
+                clientAppVersion = clientAppVersion,
+                onUpdateApp = {
+                    latestAppVersion?.let {
+                        viewModel.clientUpdateAppVersion(it.versionNumber)
+                    }
+                },
+                onContinueWithoutUpdate = {
+                    dismissedOptionalVersion = latestAppVersion?.versionNumber
                 }
             )
         }

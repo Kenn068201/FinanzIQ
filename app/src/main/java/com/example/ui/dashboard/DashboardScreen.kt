@@ -58,7 +58,10 @@ import com.example.ui.FinanceViewModel
 import com.example.ui.components.SectionHeader
 import com.example.ui.components.formatCordobas
 import com.example.ui.reports.ExportPdfReportDialog
+import com.example.ui.settings.AppSettingsDialog
 import com.example.util.AppLanguage
+import com.example.util.CurrencyConversionUtil
+import com.example.util.Localization
 import com.example.ui.theme.FinanceBackground
 import com.example.ui.theme.FinanceBorderSky
 import com.example.ui.theme.FinanceError
@@ -90,7 +93,9 @@ fun DashboardScreen(
     val savingsGoals by viewModel.savingsGoals.collectAsState()
     val bills by viewModel.bills.collectAsState()
     val accounts by viewModel.financialAccounts.collectAsState()
+    val selectedCurrency by viewModel.selectedCurrency.collectAsState()
     var showExportPdfDialog by remember { mutableStateOf(false) }
+    var showSettingsDialog by remember { mutableStateOf(false) }
 
     // El saldo de la tarjeta del dashboard principal coincide de forma reactiva con la suma de las billeteras/cuentas
     val totalWalletBalance = accounts.filter { it.isActive }.sumOf { it.balance }
@@ -119,7 +124,7 @@ fun DashboardScreen(
                 ) {
                     Column {
                         Text(
-                            text = "BIENVENIDO",
+                            text = Localization.t("welcome", lang),
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 1.2.sp,
@@ -135,14 +140,15 @@ fun DashboardScreen(
                         )
                     }
 
-                    // Sleek Avatar with Double Ring/Square styling
+                    // Botón de Perfil / Ajustes al pulsar sobre el avatar del dashboard inicial
                     Box(
                         modifier = Modifier
                             .size(48.dp)
                             .clip(RoundedCornerShape(16.dp))
                             .background(Color(0xFFE0F2FE))
                             .border(2.dp, Color(0xFFF0F9FF), RoundedCornerShape(16.dp))
-                            .clickable { onNavigateToAiAssistant() },
+                            .clickable { showSettingsDialog = true }
+                            .testTag("avatar_profile_settings_button"),
                         contentAlignment = Alignment.Center
                     ) {
                         val initials = ((currentUser?.firstName?.take(1) ?: "U") + (currentUser?.lastName?.take(1) ?: "")).uppercase()
@@ -186,7 +192,7 @@ fun DashboardScreen(
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = "Balance Mensual",
+                                    text = Localization.t("monthly_balance", lang),
                                     style = MaterialTheme.typography.bodyMedium.copy(
                                         color = Color(0xFF075985),
                                         fontWeight = FontWeight.SemiBold
@@ -194,7 +200,7 @@ fun DashboardScreen(
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "• Billeteras ➔",
+                                    text = Localization.t("wallets_shortcut_label", lang),
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         color = FinancePrimary,
                                         fontWeight = FontWeight.Bold
@@ -220,9 +226,9 @@ fun DashboardScreen(
 
                         Spacer(modifier = Modifier.height(10.dp))
 
-                        // Refleja el saldo exacto consolidado de las billeteras activas del usuario
+                        // Refleja el saldo exacto consolidado de las billeteras activas del usuario con conversión de moneda oficial
                         Text(
-                            text = formatCordobas(heroBalance),
+                            text = CurrencyConversionUtil.formatWithConversion(heroBalance, selectedCurrency),
                             style = MaterialTheme.typography.displayMedium.copy(
                                 color = Color(0xFF0C4A6E),
                                 fontWeight = FontWeight.ExtraBold
@@ -245,7 +251,7 @@ fun DashboardScreen(
                             ) {
                                 Column {
                                     Text(
-                                        text = "INGRESOS",
+                                        text = Localization.t("income_badge", lang),
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             color = Color(0xFF0369A1),
                                             fontWeight = FontWeight.ExtraBold,
@@ -254,7 +260,7 @@ fun DashboardScreen(
                                     )
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
-                                        text = "+ ${formatCordobas(summary.totalIncome)}",
+                                        text = "+ ${CurrencyConversionUtil.formatWithConversion(summary.totalIncome, selectedCurrency)}",
                                         style = MaterialTheme.typography.titleMedium.copy(
                                             color = FinanceSuccess,
                                             fontWeight = FontWeight.Bold
@@ -273,7 +279,7 @@ fun DashboardScreen(
                             ) {
                                 Column {
                                     Text(
-                                        text = "GASTOS",
+                                        text = Localization.t("expenses_badge", lang),
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             color = Color(0xFF0369A1),
                                             fontWeight = FontWeight.ExtraBold,
@@ -282,7 +288,7 @@ fun DashboardScreen(
                                     )
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
-                                        text = "- ${formatCordobas(summary.totalExpense)}",
+                                        text = "- ${CurrencyConversionUtil.formatWithConversion(summary.totalExpense, selectedCurrency)}",
                                         style = MaterialTheme.typography.titleMedium.copy(
                                             color = FinanceError,
                                             fontWeight = FontWeight.Bold
@@ -325,7 +331,7 @@ fun DashboardScreen(
                         Spacer(modifier = Modifier.width(14.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "ASISTENTE FINANCIERO IA",
+                                text = Localization.t("ai_badge", lang),
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontWeight = FontWeight.Bold,
                                     letterSpacing = 0.8.sp,
@@ -430,8 +436,8 @@ fun DashboardScreen(
             // Metas y Presupuesto Section (Sleek slate-50 Card with clean progress bar)
             item {
                 SectionHeader(
-                    title = "Metas y Presupuesto",
-                    actionText = "Ver Todo",
+                    title = Localization.t("savings_goals_title", lang),
+                    actionText = Localization.t("see_all", lang),
                     onActionClick = onNavigateToSavings
                 )
             }
@@ -530,7 +536,7 @@ fun DashboardScreen(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Text(
-                                    text = "PREDICCIÓN MES",
+                                    text = Localization.t("prediction_title", lang),
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = FontWeight.Bold,
                                         letterSpacing = 0.6.sp,
@@ -553,7 +559,7 @@ fun DashboardScreen(
                                 )
                             )
                             Text(
-                                text = "Proyección al cierre",
+                                text = Localization.t("projected_month_end", lang),
                                 style = MaterialTheme.typography.bodySmall.copy(
                                     color = Color(0xFF94A3B8),
                                     fontSize = 11.sp
@@ -581,7 +587,7 @@ fun DashboardScreen(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Text(
-                                    text = "TASA DE AHORRO",
+                                    text = Localization.t("savings_rate_title", lang),
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = FontWeight.Bold,
                                         letterSpacing = 0.6.sp,
@@ -675,8 +681,8 @@ fun DashboardScreen(
             // Movimientos Recientes Section
             item {
                 SectionHeader(
-                    title = "Movimientos Recientes",
-                    actionText = "Ver Todos",
+                    title = Localization.t("recent_movements_title", lang),
+                    actionText = Localization.t("see_all", lang),
                     onActionClick = onNavigateToTransactions
                 )
             }
@@ -699,7 +705,7 @@ fun DashboardScreen(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
-                                text = "Aún no tienes movimientos registrados",
+                                text = Localization.t("no_movements_yet", lang),
                                 style = MaterialTheme.typography.bodyMedium.copy(color = Color(0xFF64748B))
                             )
                             Spacer(modifier = Modifier.height(10.dp))
@@ -708,7 +714,7 @@ fun DashboardScreen(
                                 shape = RoundedCornerShape(14.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = FinancePrimary)
                             ) {
-                                Text("Registrar Primer Movimiento")
+                                Text(if (lang == AppLanguage.SPANISH) "Registrar Primer Movimiento" else "Add First Transaction")
                             }
                         }
                     }
@@ -726,6 +732,18 @@ fun DashboardScreen(
             ExportPdfReportDialog(
                 viewModel = viewModel,
                 onDismiss = { showExportPdfDialog = false }
+            )
+        }
+
+        // Diálogo de Ajustes de la App (idioma, moneda oficial con conversión, modo oscuro/claro y cerrar sesión)
+        if (showSettingsDialog) {
+            AppSettingsDialog(
+                viewModel = viewModel,
+                onDismiss = { showSettingsDialog = false },
+                onLogout = {
+                    showSettingsDialog = false
+                    viewModel.logout()
+                }
             )
         }
     }

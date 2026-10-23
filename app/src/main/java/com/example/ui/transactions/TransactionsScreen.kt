@@ -87,6 +87,7 @@ import com.example.data.local.TransactionEntity
 import com.example.ui.FinanceViewModel
 import com.example.ui.components.ErrorWarningBox
 import com.example.ui.components.formatCordobas
+import com.example.ui.components.formatCurrency
 import com.example.ui.theme.FinanceBackground
 import com.example.ui.theme.FinanceError
 import com.example.ui.theme.FinanceOnPrimary
@@ -820,7 +821,7 @@ fun AddTransactionDialog(
                                         selectedAccountId = acc.id
                                         errorMessage = null
                                     },
-                                    label = { Text("$accountLabel (${acc.bankName}) • $currencySymbol ${String.format(Locale.US, "%,.2f", acc.balance)}") },
+                                    label = { Text("$accountLabel (${acc.bankName}) • ${formatCurrency(acc.balance)}") },
                                     colors = FilterChipDefaults.filterChipColors(
                                         selectedContainerColor = FinanceSuccessContainer,
                                         selectedLabelColor = FinanceSuccess
@@ -938,7 +939,7 @@ fun AddTransactionDialog(
                                         selectedAccountId = acc.id
                                         errorMessage = null
                                     },
-                                    label = { Text("$accountLabel (${acc.bankName}) • $currencySymbol ${String.format(Locale.US, "%,.2f", acc.balance)}") },
+                                    label = { Text("$accountLabel (${acc.bankName}) • ${formatCurrency(acc.balance)}") },
                                     colors = FilterChipDefaults.filterChipColors(
                                         selectedContainerColor = FinanceSecondaryContainer,
                                         selectedLabelColor = FinancePrimary
@@ -1020,8 +1021,8 @@ fun AddTransactionDialog(
                             return@Button
                         }
                         if (selectedAcc != null && selectedAcc.balance < amount) {
-                            val formattedBal = "$currencySymbol ${String.format(Locale.US, "%,.2f", selectedAcc.balance)}"
-                            val formattedAmt = "$currencySymbol ${String.format(Locale.US, "%,.2f", amount)}"
+                            val formattedBal = formatCurrency(selectedAcc.balance)
+                            val formattedAmt = formatCurrency(amount)
                             errorMessage = String.format(
                                 Localization.t("error_expense_insufficient_funds", lang),
                                 selectedAccDisplayName,

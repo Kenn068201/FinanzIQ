@@ -1,6 +1,9 @@
 package com.example.data.repository
 
+import com.example.data.local.ApiMetricEntity
 import com.example.data.local.AppDatabase
+import com.example.data.local.AppVersionEntity
+import com.example.data.local.AuditLogEntity
 import com.example.data.local.BillReminderEntity
 import com.example.data.local.BudgetEntity
 import com.example.data.local.CategoryEntity
@@ -44,6 +47,9 @@ class FinanceRepository(private val db: AppDatabase) {
     private val accountDao = db.financialAccountDao()
     private val institutionDao = db.financialInstitutionDao()
     private val policyDao = db.securityPolicyDao()
+    private val auditDao = db.auditLogDao()
+    private val versionDao = db.appVersionDao()
+    private val apiMetricDao = db.apiMetricDao()
 
 
     // --- Herramientas Financieras (Cuentas y Billeteras) ---
@@ -427,8 +433,8 @@ class FinanceRepository(private val db: AppDatabase) {
                 append("Current Net Balance: $currencySymbol ${String.format(Locale.US, "%.2f", summary.balance)}\n")
                 append("Projected Month-End Expenses: $currencySymbol ${String.format(Locale.US, "%.2f", summary.projectedMonthEndExpense)}\n")
                 append("Recent Transactions:\n")
-                txs.take(8).forEach {
-                    append("- ${it.type}: ${it.title} | ${it.category} | $currencySymbol ${it.amount}\n")
+                txs.take(8).forEach { txItem ->
+                    append("- ${txItem.type}: ${txItem.title} | ${txItem.category} | $currencySymbol ${txItem.amount}\n")
                 }
             } else {
                 append("Usuario: ${user?.firstName ?: "Cliente"} ${user?.lastName ?: ""}\n")
@@ -437,8 +443,8 @@ class FinanceRepository(private val db: AppDatabase) {
                 append("Balance Actual: $currencySymbol ${String.format(Locale.US, "%.2f", summary.balance)}\n")
                 append("Proyección de gastos a fin de mes: $currencySymbol ${String.format(Locale.US, "%.2f", summary.projectedMonthEndExpense)}\n")
                 append("Transacciones Recientes:\n")
-                txs.take(8).forEach {
-                    append("- ${it.type}: ${it.title} | ${it.category} | $currencySymbol ${it.amount}\n")
+                txs.take(8).forEach { txItem ->
+                    append("- ${txItem.type}: ${txItem.title} | ${txItem.category} | $currencySymbol ${txItem.amount}\n")
                 }
             }
         }
@@ -477,4 +483,88 @@ class FinanceRepository(private val db: AppDatabase) {
             append("Fin del reporte generado con Finanzas Inteligentes.\n")
         }
     }
+
+    // --- Bitácora de Auditoría del Sistema ---
+    fun getAllAuditLogs(): Flow<List<AuditLogEntity>> = auditDao.getAllLogs()
+
+    suspend fun logAuditEvent(
+        eventType: String,
+        severity: String = "INFO",
+        username: String = "Sistema",
+        description: String,
+        ipAddress: String,
+        details: String = "",
+        userId: Long? = null
+    ): Long {
+        return auditDao.insertLog(
+            AuditLogEntity(
+                eventType = eventType,
+                severity = severity,
+                userId = userId,
+                username = username,
+                description = description,
+                ipAddress = ipAddress,
+                timestamp = System.currentTimeMillis(),
+                details = details
+            )
+        )
+    }
+
+    suspend fun clearAuditLogs() = auditDao.clearLogs()
+
+    // --- Control de Versiones de la Aplicación ---
+    fun getAllAppVersions(): Flow<List<AppVersionEntity>> = versionDao.getAllVersions()
+
+    fun getLatestVersionFlow(): Flow<AppVersionEntity?> = versionDao.getLatestVersionFlow()
+
+    suspend fun getLatestAppVersion(): AppVersionEntity? = versionDao.getLatestVersion()
+
+    suspend fun publishAppVersion(
+        versionNumber: String,
+        releaseNotes: String,
+        isMandatory: Boolean,
+        publishedBy: String = "Admin"
+    ): Long {
+        return versionDao.insertVersion(
+            AppVersionEntity(
+                versionNumber = versionNumber.trim(),
+                releaseNotes = releaseNotes.trim(),
+                isMandatory = isMandatory,
+                publishedBy = publishedBy.trim(),
+                releaseDate = System.currentTimeMillis()
+            )
+        )
+    }
+
+    // --- Monitor de APIs Integradas ---
+    fun getRecentApiMetrics(): Flow<List<ApiMetricEntity>> = apiMetricDao.getRecentMetrics()
+
+    suspend fun getApiMetricsSince(sinceTimestamp: Long): List<ApiMetricEntity> =
+        apiMetricDao.getMetricsSince(sinceTimestamp)
+
+    suspend fun logApiMetric(
+        apiName: String,
+        endpoint: String,
+        latencyMs: Long,
+        isSuccess: Boolean,
+        statusCode: Int = 200,
+        errorMessage: String = ""
+    ): Long {
+        return apiMetricDao.insertMetric(
+            ApiMetricEntity(
+                apiName = apiName,
+                endpoint = endpoint,
+                latencyMs = latencyMs,
+                isSuccess = isSuccess,
+                statusCode = statusCode,
+                errorMessage = errorMessage,
+                timestamp = System.currentTimeMillis()
+            )
+        )
+    }
+
+    suspend fun logApiMetric(metric: ApiMetricEntity): Long {
+        return apiMetricDao.insertMetric(metric)
+    }
 }
+

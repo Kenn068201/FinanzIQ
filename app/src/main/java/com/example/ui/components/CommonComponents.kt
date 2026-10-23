@@ -92,17 +92,33 @@ fun ErrorWarningBox(
     }
 }
 
-// Formatted Currency String
+/**
+ * Formateo de moneda unificado y global para toda la aplicación FinanzIQ.
+ * 
+ * Qué hace:
+ * Convierte el importe base en Córdobas (NIO) a la divisa activa seleccionada por el usuario
+ * (o a la divisa especificada) aplicando los tipos de cambio oficiales de cada país, y le da
+ * formato numérico con separadores de miles y dos decimales precedido por el símbolo correspondiente.
+ * 
+ * Por qué se implementa de esta forma:
+ * Da solución estricta al Problema 1: "Las preferencias del usuario se deben aplicar a cada formulario,
+ * aviso, tarjeta visual, filtro, módulo del sistema existente, ya que actualmente no se aplican de forma pareja,
+ * por ejemplo, la moneda solo se aplica a la tarjeta de saldo global, el resto sigue en Córdobas sin convertirse".
+ * 
+ * Cómo se relaciona con el resto del código:
+ * Al delegar en CurrencyConversionUtil.activeCurrency (un mutableStateOf de Compose), todas las interfaces
+ * (Dashboard, Billeteras, Presupuestos, Movimientos, Facturas, Metas) que llaman a formatCurrency o formatCordobas
+ * se recomponen y actualizan automáticamente cuando el usuario guarda sus preferencias en el diálogo de ajustes.
+ */
 fun formatCurrency(amount: Double, currency: com.example.util.CurrencyOption? = null): String {
-    val symbols = DecimalFormatSymbols(Locale.US).apply {
-        groupingSeparator = ','
-        decimalSeparator = '.'
-    }
-    val formatter = DecimalFormat("#,##0.00", symbols)
-    val sym = currency?.symbol ?: "C$"
-    return "$sym ${formatter.format(amount)}"
+    val target = currency ?: com.example.util.CurrencyConversionUtil.activeCurrency
+    return com.example.util.CurrencyConversionUtil.formatWithConversion(amount, target)
 }
 
+/**
+ * Función puente compatible con llamadas históricas formatCordobas.
+ * Convierte automáticamente el monto base en Córdobas a la divisa activa del usuario.
+ */
 fun formatCordobas(amount: Double): String {
     return formatCurrency(amount, null)
 }

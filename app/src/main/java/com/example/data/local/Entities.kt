@@ -158,3 +158,100 @@ data class SecurityPolicyEntity(
     val updatedAt: Long = System.currentTimeMillis()
 )
 
+/**
+ * Entidad de Registro de Auditoría (Bitácora de eventos del sistema).
+ * 
+ * Qué hace:
+ * Registra inicios de sesión exitosos y fallidos, cambios críticos en directivas de seguridad,
+ * modificaciones en catálogo de proveedores/bancos, cambios de estado en cuentas de usuario
+ * y publicaciones de versiones, junto a la fecha, hora e IP exacta del evento.
+ * 
+ * Por qué se implementa de esta forma:
+ * Permite al administrador auditar la seguridad, identificar actividad sospechosa por patrones
+ * y diagnosticar fallos operacionales.
+ * 
+ * Cómo se relaciona con el resto:
+ * Se almacena en Room mediante AuditLogDao y se expone con Flow para filtrado dinámico en tiempo real.
+ */
+@Entity(tableName = "audit_logs")
+data class AuditLogEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
+    val eventType: String, // "LOGIN_SUCCESS", "LOGIN_FAILED", "SECURITY_CHANGE", "INSTITUTION_CHANGE", "USER_STATUS_CHANGE", "VERSION_UPDATE"
+    val severity: String = "INFO", // "INFO", "WARNING", "CRITICAL"
+    val userId: Long? = null,
+    val username: String = "Sistema",
+    val description: String,
+    val ipAddress: String, // IP exacta donde se originó el evento (ej. "192.168.1.105")
+    val timestamp: Long = System.currentTimeMillis(),
+    val details: String = ""
+) {
+    val isSuccess: Boolean
+        get() = severity != "ERROR" && !eventType.contains("FAIL")
+
+    val action: String
+        get() = description
+
+    val eventDate: String
+        get() {
+            val date = java.util.Date(timestamp)
+            return java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()).format(date)
+        }
+
+    val eventTime: String
+        get() {
+            val date = java.util.Date(timestamp)
+            return java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(date)
+        }
+}
+
+/**
+ * Entidad para el Control de Versiones de la Aplicación.
+ * 
+ * Qué hace:
+ * Guarda los números de versión publicados, sus notas de cambio y si la actualización es
+ * de carácter obligatorio o de carácter opcional para los usuarios finales.
+ * 
+ * Por qué se implementa de esta forma:
+ * Cumple con el requerimiento de sincronizar la versión del sistema con la notificación
+ * y bloqueo de uso para versiones obsoletas si el administrador la marca como obligatoria.
+ * 
+ * Cómo se relaciona con el resto:
+ * El Scaffold y la navegación comparan la versión del cliente contra la última versión registrada.
+ */
+@Entity(tableName = "app_versions")
+data class AppVersionEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
+    val versionNumber: String, // Número de versión (ej. "1.2.0")
+    val releaseNotes: String, // Notas de cambios y novedades (no nulo)
+    val isMandatory: Boolean, // true: Obligatoria (bloqueante), false: Opcional
+    val publishedBy: String = "Admin",
+    val releaseDate: Long = System.currentTimeMillis()
+)
+
+/**
+ * Entidad de Métricas para el Monitor de APIs Integradas.
+ * 
+ * Qué hace:
+ * Registra el uso, latencia en ms, código de respuesta y resultado de las APIs consumidas
+ * por la aplicación (Gemini AI, Tasas de Cambio BCN, Gateway Financiero y Notificaciones).
+ * 
+ * Por qué se implementa de esta forma:
+ * Permite calcular tasas de error porcentuales, latencia media, uptime y emitir alertas visuales
+ * si el margen de error supera el 15% en los últimos 15 minutos.
+ */
+@Entity(tableName = "api_metrics")
+data class ApiMetricEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
+    val apiName: String, // Identificador de la API integrada
+    val endpoint: String,
+    val latencyMs: Long,
+    val isSuccess: Boolean,
+    val statusCode: Int = 200,
+    val errorMessage: String = "",
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+

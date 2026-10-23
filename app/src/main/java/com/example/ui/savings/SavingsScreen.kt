@@ -87,6 +87,7 @@ import com.example.data.local.FinancialAccountEntity
 import com.example.data.local.SavingsGoalEntity
 import com.example.ui.FinanceViewModel
 import com.example.ui.components.ErrorWarningBox
+import com.example.ui.components.formatCurrency
 import com.example.ui.theme.FinanceBackground
 import com.example.ui.theme.FinanceError
 import com.example.ui.theme.FinanceOnPrimary
@@ -868,14 +869,14 @@ fun SavingsGoalProgressCard(
             ) {
                 Column {
                     Text(
-                        text = "${Localization.t("goal_saved_label", lang)} $currencySymbol ${String.format(Locale.US, "%,.2f", goal.currentAmount)}",
+                        text = "${Localization.t("goal_saved_label", lang)} ${formatCurrency(goal.currentAmount)}",
                         style = MaterialTheme.typography.bodyMedium.copy(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                     )
                     Text(
-                        text = "${Localization.t("goal_target_label", lang)} $currencySymbol ${String.format(Locale.US, "%,.2f", goal.targetAmount)}",
+                        text = "${Localization.t("goal_target_label", lang)} ${formatCurrency(goal.targetAmount)}",
                         style = MaterialTheme.typography.bodySmall.copy(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -1070,7 +1071,7 @@ fun DepositToGoalWithAccountModal(
                 Spacer(modifier = Modifier.height(10.dp))
 
                 Text(
-                    text = "${Localization.t("goal_saved_label", lang)} $currencySymbol ${String.format(Locale.US, "%,.2f", goal.currentAmount)} / $currencySymbol ${String.format(Locale.US, "%,.2f", goal.targetAmount)}",
+                    text = "${Localization.t("goal_saved_label", lang)} ${formatCurrency(goal.currentAmount)} / ${formatCurrency(goal.targetAmount)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1121,7 +1122,7 @@ fun DepositToGoalWithAccountModal(
                                     )
                                     if (selectedAccount != null) {
                                         Text(
-                                            text = "${Localization.t("available_prefix", lang)} $currencySymbol ${String.format(Locale.US, "%,.2f", selectedAccount!!.balance)}",
+                                            text = "${Localization.t("available_prefix", lang)} ${formatCurrency(selectedAccount!!.balance)}",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = if (selectedAccount!!.balance > 0) FinanceSuccess else FinanceError
                                         )
@@ -1140,7 +1141,7 @@ fun DepositToGoalWithAccountModal(
                                     text = {
                                         Column {
                                             Text("${acc.bankName} - ${acc.accountType} (${acc.accountNumber})", fontWeight = FontWeight.SemiBold)
-                                            Text("$currencySymbol ${String.format(Locale.US, "%,.2f", acc.balance)}", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                                            Text(formatCurrency(acc.balance), color = Color.Gray, style = MaterialTheme.typography.bodySmall)
                                         }
                                     },
                                     onClick = {

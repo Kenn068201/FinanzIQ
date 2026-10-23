@@ -77,6 +77,7 @@ import com.example.ui.theme.FinanceSecondaryContainer
 import com.example.ui.theme.FinanceSuccess
 import com.example.ui.theme.FinanceSuccessContainer
 import com.example.ui.transactions.TransferFundsDialog
+import com.example.ui.components.formatCurrency
 import com.example.util.Localization
 import java.util.Locale
 
@@ -199,7 +200,7 @@ fun WalletsScreen(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "${currency.symbol} ${String.format(Locale.US, "%,.2f", totalActiveBalance)}",
+                            text = formatCurrency(totalActiveBalance, currency),
                             style = MaterialTheme.typography.headlineMedium.copy(
                                 fontWeight = FontWeight.Black,
                                 color = MaterialTheme.colorScheme.primary
@@ -208,7 +209,7 @@ fun WalletsScreen(
                         if (totalCreditLimit > 0.0) {
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "${Localization.t("credit_limit_label", lang)}: ${currency.symbol} ${String.format(Locale.US, "%,.2f", totalCreditLimit)}",
+                                text = "${Localization.t("credit_limit_label", lang)}: ${formatCurrency(totalCreditLimit, currency)}",
                                 style = MaterialTheme.typography.bodySmall.copy(
                                     fontWeight = FontWeight.Medium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -585,7 +586,7 @@ fun FinancialAccountCard(
                         style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                     )
                     Text(
-                        text = "$currencySymbol ${String.format(Locale.US, "%,.2f", account.balance)}",
+                        text = formatCurrency(account.balance),
                         style = MaterialTheme.typography.titleLarge.copy(
                             fontWeight = FontWeight.Bold,
                             color = if (!isActive) Color.Gray else if (account.balance >= 0) FinanceSuccess else FinanceError
@@ -610,7 +611,7 @@ fun FinancialAccountCard(
                         style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold, color = Color(0xFF92400E))
                     )
                     Text(
-                        text = "$currencySymbol ${String.format(Locale.US, "%,.2f", account.creditLimit)}",
+                        text = formatCurrency(account.creditLimit),
                         style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold, color = Color(0xFF92400E))
                     )
                 }

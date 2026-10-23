@@ -19,9 +19,12 @@ import kotlinx.coroutines.launch
         CategoryEntity::class,
         FinancialAccountEntity::class,
         FinancialInstitutionEntity::class,
-        SecurityPolicyEntity::class
+        SecurityPolicyEntity::class,
+        AuditLogEntity::class,
+        AppVersionEntity::class,
+        ApiMetricEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -34,6 +37,9 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun financialAccountDao(): FinancialAccountDao
     abstract fun financialInstitutionDao(): FinancialInstitutionDao
     abstract fun securityPolicyDao(): SecurityPolicyDao
+    abstract fun auditLogDao(): AuditLogDao
+    abstract fun appVersionDao(): AppVersionDao
+    abstract fun apiMetricDao(): ApiMetricDao
 
 
     companion object {
@@ -383,6 +389,122 @@ abstract class AppDatabase : RoomDatabase() {
             billDao.insertBill(BillReminderEntity(userId = demoUserId, title = "Recibo de Agua Potable", amount = 380.0, dueDateMillis = now + (day * 3), category = "Servicios Básicos", isPaid = false))
             billDao.insertBill(BillReminderEntity(userId = demoUserId, title = "Internet de Fibra Óptica", amount = 950.0, dueDateMillis = now + (day * 7), category = "Servicios Básicos", isPaid = false))
             billDao.insertBill(BillReminderEntity(userId = demoUserId, title = "Cuota Préstamo Personal", amount = 2500.0, dueDateMillis = now + (day * 15), category = "Otros Gastos", isPaid = false))
+
+            // Inicialización de la Bitácora de Auditoría del Sistema
+            val auditDao = db.auditLogDao()
+            val initialLogs = listOf(
+                AuditLogEntity(
+                    eventType = "LOGIN_SUCCESS",
+                    severity = "INFO",
+                    userId = 2L,
+                    username = "carlos_admin",
+                    description = "Inicio de sesión administrativo exitoso",
+                    ipAddress = "192.168.1.105",
+                    timestamp = now - (day * 2) - 3600000L,
+                    details = "Autenticación correcta con credenciales de administrador"
+                ),
+                AuditLogEntity(
+                    eventType = "SECURITY_CHANGE",
+                    severity = "WARNING",
+                    userId = 2L,
+                    username = "carlos_admin",
+                    description = "Ajuste de directivas globales de seguridad",
+                    ipAddress = "192.168.1.105",
+                    timestamp = now - (day * 2),
+                    details = "Configurado límite de intentos en 3 y bloqueo temporal a 300 segundos"
+                ),
+                AuditLogEntity(
+                    eventType = "INSTITUTION_CHANGE",
+                    severity = "INFO",
+                    userId = 2L,
+                    username = "carlos_admin",
+                    description = "Actualización de catálogo de proveedores financieros",
+                    ipAddress = "192.168.1.105",
+                    timestamp = now - (day * 1) - 7200000L,
+                    details = "Verificación de bancos y billeteras habilitadas para vinculación"
+                ),
+                AuditLogEntity(
+                    eventType = "LOGIN_FAILED",
+                    severity = "CRITICAL",
+                    userId = null,
+                    username = "usuario_desconocido",
+                    description = "Intento fallido de inicio de sesión",
+                    ipAddress = "201.218.45.12",
+                    timestamp = now - 3600000L * 4,
+                    details = "Intento de acceso con contraseña incorrecta (3 intentos consecutivos)"
+                ),
+                AuditLogEntity(
+                    eventType = "LOGIN_SUCCESS",
+                    severity = "INFO",
+                    userId = 1L,
+                    username = "elena_gomez",
+                    description = "Inicio de sesión de usuario final exitoso",
+                    ipAddress = "192.168.1.112",
+                    timestamp = now - 1800000L,
+                    details = "Acceso a panel de control móvil"
+                )
+            )
+            auditDao.insertLogs(initialLogs)
+
+            // Inicialización del Control de Versiones con versión 1.0.0 base y versión 2.0.0 obligatoria
+            val versionDao = db.appVersionDao()
+            versionDao.insertVersion(
+                AppVersionEntity(
+                    versionNumber = "1.0.0",
+                    releaseNotes = "• Versión inicial estable de FinanzIQ\n• Gestión de transacciones, presupuestos y metas\n• Catálogo bancario y asistente de IA integrado",
+                    isMandatory = false,
+                    publishedBy = "Admin",
+                    releaseDate = now - (day * 15)
+                )
+            )
+            versionDao.insertVersion(
+                AppVersionEntity(
+                    versionNumber = "2.0.0",
+                    releaseNotes = "• Actualización obligatoria del sistema FinanzIQ\n• Sincronización global de preferencias y tasas de cambio oficiales BCN\n• Nuevas directivas de seguridad bancaria y modo oscuro homogéneo",
+                    isMandatory = true,
+                    publishedBy = "Carlos Mendoza (Admin)",
+                    releaseDate = now - (day * 1)
+                )
+            )
+
+            // Inicialización de Métricas del Monitor de APIs
+            val apiMetricDao = db.apiMetricDao()
+            val initialMetrics = listOf(
+                ApiMetricEntity(
+                    apiName = "Gemini AI Studio API",
+                    endpoint = "https://generativelanguage.googleapis.com/v1beta/models",
+                    latencyMs = 185,
+                    isSuccess = true,
+                    statusCode = 200,
+                    timestamp = now - 60000L * 5
+                ),
+                ApiMetricEntity(
+                    apiName = "BCN Official Exchange Rates API",
+                    endpoint = "https://servicios.bcn.gob.ni/TcWebService",
+                    latencyMs = 95,
+                    isSuccess = true,
+                    statusCode = 200,
+                    timestamp = now - 60000L * 8
+                ),
+                ApiMetricEntity(
+                    apiName = "Financial Institutions Gateway API",
+                    endpoint = "https://api.finanziq.internal/v1/institutions/sync",
+                    latencyMs = 120,
+                    isSuccess = true,
+                    statusCode = 200,
+                    timestamp = now - 60000L * 10
+                ),
+                ApiMetricEntity(
+                    apiName = "Push Notification & Bill Reminders API",
+                    endpoint = "https://api.finanziq.internal/v1/bills/notify",
+                    latencyMs = 78,
+                    isSuccess = true,
+                    statusCode = 200,
+                    timestamp = now - 60000L * 12
+                )
+            )
+            apiMetricDao.insertMetrics(initialMetrics)
         }
     }
 }
+
