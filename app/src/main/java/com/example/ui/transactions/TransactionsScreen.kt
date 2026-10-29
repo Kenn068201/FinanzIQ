@@ -324,12 +324,12 @@ fun TransactionsScreen(
                             text = Localization.t("no_movements_found", lang),
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFF6B7280)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         )
                         Text(
                             text = Localization.t("no_movements_hint", lang),
-                            style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF9CA3AF))
+                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
                         )
                     }
                 }
@@ -413,8 +413,12 @@ fun TransactionCardDetail(
 
     Card(
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = CardDefaults.outlinedCardBorder().copy(
+            brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.outlineVariant),
+            width = 1.dp
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         modifier = modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -431,7 +435,7 @@ fun TransactionCardDetail(
                         modifier = Modifier
                             .size(38.dp)
                             .clip(CircleShape)
-                            .background(if (isIncome) FinanceSuccessContainer else Color(0xFFFEE2E2)),
+                            .background(if (isIncome) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
@@ -447,7 +451,7 @@ fun TransactionCardDetail(
                             text = tx.title,
                             style = MaterialTheme.typography.titleSmall.copy(
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF111827)
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         )
                         val subtitle = buildString {
@@ -460,7 +464,7 @@ fun TransactionCardDetail(
                         Text(
                             text = subtitle,
                             style = MaterialTheme.typography.bodySmall.copy(
-                                color = Color(0xFF6B7280)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         )
                     }
@@ -481,7 +485,7 @@ fun TransactionCardDetail(
                         Icon(
                             imageVector = Icons.Default.Delete,
                             contentDescription = "Eliminar",
-                            tint = Color(0xFF9CA3AF),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -501,13 +505,13 @@ fun TransactionCardDetail(
                     if (tx.incomeSubType == "PASSIVE") {
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = FinanceSecondaryContainer.copy(alpha = 0.7f)
+                            color = MaterialTheme.colorScheme.secondaryContainer
                         ) {
                             Text(
                                 text = "🌱 Pasivo • ${tx.frequency}",
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontWeight = FontWeight.SemiBold,
-                                    color = FinancePrimary
+                                    color = MaterialTheme.colorScheme.primary
                                 ),
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
@@ -516,11 +520,11 @@ fun TransactionCardDetail(
                     if (tx.payoutDate.isNotBlank()) {
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = Color(0xFFF3F4F6)
+                            color = MaterialTheme.colorScheme.surfaceVariant
                         ) {
                             Text(
                                 text = "📅 ${tx.payoutDate}",
-                                style = MaterialTheme.typography.labelSmall.copy(color = Color(0xFF4B5563)),
+                                style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
@@ -528,11 +532,11 @@ fun TransactionCardDetail(
                     if (tx.destination.isNotBlank()) {
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = Color(0xFFF3F4F6)
+                            color = MaterialTheme.colorScheme.surfaceVariant
                         ) {
                             Text(
                                 text = "🏦 ${tx.destination}",
-                                style = MaterialTheme.typography.labelSmall.copy(color = Color(0xFF4B5563)),
+                                style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
@@ -545,7 +549,7 @@ fun TransactionCardDetail(
                 Text(
                     text = "Nota: ${tx.note}",
                     style = MaterialTheme.typography.bodySmall.copy(
-                        color = Color(0xFF4B5563),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp
                     ),
                     modifier = Modifier.padding(start = 48.dp)
@@ -746,12 +750,12 @@ fun AddTransactionDialog(
                                 Column {
                                     Text(
                                         text = "${selectedPassiveCategory.iconEmoji} ¿Qué es ${if (lang == AppLanguage.ENGLISH) selectedPassiveCategory.titleEn else selectedPassiveCategory.titleEs}?",
-                                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold, color = Color(0xFF004C73))
+                                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
                                         text = if (lang == AppLanguage.ENGLISH) selectedPassiveCategory.explanationEn else selectedPassiveCategory.explanationEs,
-                                        style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF1F2937), lineHeight = 18.sp)
+                                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSecondaryContainer, lineHeight = 18.sp)
                                     )
                                 }
                             }

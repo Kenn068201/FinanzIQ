@@ -1,5 +1,6 @@
 package com.example.ui.admin
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -53,6 +54,7 @@ import com.example.ui.theme.FinanceError
 import com.example.ui.theme.FinancePrimary
 import com.example.ui.theme.FinanceSecondaryContainer
 import com.example.ui.theme.FinanceSuccess
+import com.example.ui.theme.FinanceSuccessContainer
 import java.util.Locale
 
 /**
@@ -288,7 +290,8 @@ fun AuditLogItemCard(
 ) {
     Card(
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         modifier = modifier.fillMaxWidth().testTag("audit_item_${log.id}")
     ) {
@@ -308,8 +311,8 @@ fun AuditLogItemCard(
                             .clip(RoundedCornerShape(6.dp))
                             .background(
                                 when (log.severity) {
-                                    "ERROR" -> Color(0xFFFEE2E2)
-                                    "WARN" -> Color(0xFFFEF3C7)
+                                    "ERROR" -> MaterialTheme.colorScheme.errorContainer
+                                    "WARN" -> MaterialTheme.colorScheme.surfaceVariant
                                     else -> FinanceSecondaryContainer
                                 }
                             )
@@ -333,7 +336,7 @@ fun AuditLogItemCard(
                         text = "👤 ${log.username}",
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF374151)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     )
                 }
@@ -341,14 +344,14 @@ fun AuditLogItemCard(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))
-                        .background(if (log.isSuccess) Color(0xFFDCFCE7) else Color(0xFFFEE2E2))
+                        .background(if (log.isSuccess) FinanceSuccessContainer else MaterialTheme.colorScheme.errorContainer)
                         .padding(horizontal = 8.dp, vertical = 3.dp)
                 ) {
                     Text(
                         text = if (log.isSuccess) "EXITOSO" else "FALLIDO",
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontWeight = FontWeight.Bold,
-                            color = if (log.isSuccess) Color(0xFF15803D) else FinanceError,
+                            color = if (log.isSuccess) FinanceSuccess else MaterialTheme.colorScheme.onErrorContainer,
                             fontSize = 10.sp
                         )
                     )
@@ -362,7 +365,7 @@ fun AuditLogItemCard(
                 text = log.action,
                 style = MaterialTheme.typography.bodyMedium.copy(
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF111827)
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             )
 
@@ -371,7 +374,7 @@ fun AuditLogItemCard(
                 Text(
                     text = log.details,
                     style = MaterialTheme.typography.bodySmall.copy(
-                        color = Color(0xFF4B5563)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 )
             }

@@ -85,13 +85,13 @@ fun AppUpdatePromptDialog(
                     modifier = Modifier
                         .size(40.dp)
                         .clip(CircleShape)
-                        .background(if (isMandatory) Color(0xFFFEE2E2) else Color(0xFFEFF6FF)),
+                        .background(if (isMandatory) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = if (isMandatory) Icons.Default.Warning else Icons.Default.SystemUpdate,
                         contentDescription = null,
-                        tint = if (isMandatory) FinanceError else FinancePrimary,
+                        tint = if (isMandatory) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier.size(24.dp)
                     )
                 }
@@ -99,11 +99,14 @@ fun AppUpdatePromptDialog(
                 Column {
                     Text(
                         text = if (isMandatory) "Actualización Obligatoria" else "Nueva Versión Disponible",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
                     )
                     Text(
                         text = "Versión instalada: v$clientAppVersion • Nueva: v${latestVersion.versionNumber}",
-                        style = MaterialTheme.typography.bodySmall.copy(color = Color.Gray)
+                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                     )
                 }
             }
@@ -118,13 +121,13 @@ fun AppUpdatePromptDialog(
                 if (isMandatory) {
                     Card(
                         shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF2F2)),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
                             text = "su versión es obsoleta y debe actualizar obligatoriamente la app",
                             style = MaterialTheme.typography.bodyMedium.copy(
-                                color = Color(0xFF991B1B),
+                                color = MaterialTheme.colorScheme.onErrorContainer,
                                 fontWeight = FontWeight.Bold
                             ),
                             modifier = Modifier.padding(12.dp)
@@ -133,13 +136,13 @@ fun AppUpdatePromptDialog(
                 } else {
                     Card(
                         shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF0FDF4)),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
                             text = "Hay mejoras y optimizaciones disponibles para FinanzIQ. Puedes actualizar ahora o seguir usando la aplicación.",
                             style = MaterialTheme.typography.bodySmall.copy(
-                                color = Color(0xFF166534),
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
                                 fontWeight = FontWeight.Medium
                             ),
                             modifier = Modifier.padding(12.dp)
@@ -149,18 +152,21 @@ fun AppUpdatePromptDialog(
 
                 Text(
                     text = "Notas de la versión v${latestVersion.versionNumber}:",
-                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, color = Color(0xFF374151))
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
                 )
 
                 Card(
                     shape = RoundedCornerShape(10.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF9FAFB)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
                         text = latestVersion.releaseNotes,
                         style = MaterialTheme.typography.bodySmall.copy(
-                            color = Color(0xFF1F2937),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             lineHeight = 18.sp
                         ),
                         modifier = Modifier.padding(12.dp)
@@ -172,7 +178,8 @@ fun AppUpdatePromptDialog(
             Button(
                 onClick = onUpdateApp,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isMandatory) FinanceError else FinancePrimary
+                    containerColor = if (isMandatory) FinanceError else FinancePrimary,
+                    contentColor = Color.White
                 ),
                 shape = RoundedCornerShape(10.dp),
                 modifier = Modifier.testTag("btn_confirm_app_update")
@@ -192,12 +199,15 @@ fun AppUpdatePromptDialog(
                 ) {
                     Text(
                         text = "Seguir usando la app sin actualizar",
-                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium)
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
                     )
                 }
             }
         },
         shape = RoundedCornerShape(20.dp),
-        containerColor = Color.White
+        containerColor = MaterialTheme.colorScheme.surface
     )
 }

@@ -152,7 +152,7 @@ fun ExportPdfReportDialog(
                         "Select the date range for your financial report. It includes 2 detailed tables: General Balance and Breakdown by Wallets/Accounts."
                     else
                         "Selecciona el rango de tiempo para tu informe. Incluirá 2 tablas detalladas: Balance General y Desglose por Billeteras y Cuentas asociadas.",
-                    style = MaterialTheme.typography.bodyMedium.copy(color = Color(0xFF475569))
+                    style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                 )
 
                 // Mensaje de advertencia o error en caso de periodo inválido o sin movimientos
@@ -381,6 +381,7 @@ fun ExportPdfReportDialog(
             }
         },
         shape = RoundedCornerShape(18.dp),
-        containerColor = Color.White
+        // Se utiliza el color de superficie del tema para garantizar adaptabilidad perfecta tanto en modo claro como oscuro
+        containerColor = MaterialTheme.colorScheme.surface
     )
 }

@@ -3,6 +3,7 @@ package com.example.ui.admin
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -50,6 +51,7 @@ import com.example.ui.theme.FinanceError
 import com.example.ui.theme.FinancePrimary
 import com.example.ui.theme.FinanceSecondaryContainer
 import com.example.ui.theme.FinanceSuccess
+import com.example.ui.theme.FinanceSuccessContainer
 
 /**
  * Sección de Monitor de APIs de la Interfaz de Admin.
@@ -137,7 +139,8 @@ fun ApiMonitorSection(
         // Panel de Control con Botón de Consulta de APIs
         Card(
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -244,7 +247,8 @@ fun ApiStatusCard(
 ) {
     Card(
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         modifier = modifier.fillMaxWidth().testTag("api_card_${item.apiName}")
     ) {
@@ -259,7 +263,7 @@ fun ApiStatusCard(
                     text = item.apiName,
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF0F172A)
+                        color = MaterialTheme.colorScheme.onSurface
                     ),
                     modifier = Modifier.weight(1f)
                 )
@@ -270,9 +274,9 @@ fun ApiStatusCard(
                         .clip(RoundedCornerShape(8.dp))
                         .background(
                             when (item.statusColor) {
-                                "GREEN" -> Color(0xFFDCFCE7)
-                                "YELLOW" -> Color(0xFFFEF3C7)
-                                else -> Color(0xFFFEE2E2)
+                                "GREEN" -> FinanceSuccessContainer
+                                "YELLOW" -> MaterialTheme.colorScheme.surfaceVariant
+                                else -> MaterialTheme.colorScheme.errorContainer
                             }
                         )
                         .padding(horizontal = 10.dp, vertical = 4.dp)
@@ -300,7 +304,7 @@ fun ApiStatusCard(
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontWeight = FontWeight.Bold,
                                 color = when (item.statusColor) {
-                                    "GREEN" -> Color(0xFF15803D)
+                                    "GREEN" -> FinanceSuccess
                                     "YELLOW" -> Color(0xFFB45309)
                                     else -> FinanceError
                                 }
@@ -320,15 +324,15 @@ fun ApiStatusCard(
                 MetricPill(
                     label = "Latencia Promedio",
                     value = "${item.averageLatencyMs} ms",
-                    containerColor = Color(0xFFF8FAFC),
-                    valueColor = if (item.averageLatencyMs > 400) Color(0xFFD97706) else Color(0xFF1E293B),
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    valueColor = if (item.averageLatencyMs > 400) Color(0xFFD97706) else MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f)
                 )
                 MetricPill(
                     label = "Tiempo Activo",
                     value = "${String.format(java.util.Locale.US, "%.1f", item.uptimePercentage)}%",
-                    containerColor = Color(0xFFF8FAFC),
-                    valueColor = if (item.uptimePercentage >= 99.0) Color(0xFF15803D) else Color(0xFFB45309),
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    valueColor = if (item.uptimePercentage >= 99.0) FinanceSuccess else Color(0xFFB45309),
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -342,15 +346,15 @@ fun ApiStatusCard(
                 MetricPill(
                     label = "Tasa de Errores",
                     value = "${String.format(java.util.Locale.US, "%.1f", item.errorRatePercentage)}%",
-                    containerColor = if (item.errorRatePercentage >= 15.0) Color(0xFFFEF2F2) else Color(0xFFF8FAFC),
-                    valueColor = if (item.errorRatePercentage >= 15.0) FinanceError else Color(0xFF1E293B),
+                    containerColor = if (item.errorRatePercentage >= 15.0) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    valueColor = if (item.errorRatePercentage >= 15.0) FinanceError else MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f)
                 )
                 MetricPill(
                     label = "Uso de API",
                     value = "${item.totalRequests} llamadas",
-                    containerColor = Color(0xFFF8FAFC),
-                    valueColor = Color(0xFF1E293B),
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    valueColor = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f)
                 )
             }

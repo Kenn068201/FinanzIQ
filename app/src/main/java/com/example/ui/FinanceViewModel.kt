@@ -42,12 +42,18 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import com.example.ui.ai_assistant.AiChartData
+import com.example.ui.ai_assistant.AiFinancialAnalyticsEngine
 
 data class ChatMessage(
     val id: String,
     val sender: String, // "user" or "ai"
     val text: String,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val chartData: AiChartData? = null,
+    val recommendations: List<String> = emptyList(),
+    val isErrorNotice: Boolean = false,
+    val isTableData: Boolean = false
 )
 
 data class UiAlert(
@@ -1783,6 +1789,22 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
 
     // --- AI Assistant ---
+    /**
+     * Procesa y despacha las consultas dirigidas al Asistente Virtual Inteligente.
+     * 
+     * Qué hace:
+     * Si la consulta solicita la generación de gráficos (por categorías, semanas o meses),
+     * tablas mensuales del año en curso o validación de rangos de fecha, delega el cálculo
+     * a AiFinancialAnalyticsEngine para obtener datos reales y recomendaciones estructuradas.
+     * En cualquier otra consulta conversacional, recurre al servicio Gemini / asistente inteligente.
+     * 
+     * Por qué se implementa de esa forma:
+     * Cumple estrictamente con las validaciones requeridas de correspondencia de usuario,
+     * datos suficientes, rangos de fecha no futuros y entrega de recomendaciones asociadas al gráfico.
+     * 
+     * Cómo se relaciona con el resto del código:
+     * Alimenta el StateFlow _chatMessages observado reactivamente por la interfaz de AiAssistantScreen.
+     */
     fun sendAiMessage(promptText: String) {
         val user = _currentUser.value ?: return
         val q = promptText.trim()
@@ -1796,11 +1818,24 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         val sym = _selectedCurrency.value.symbol
 
         viewModelScope.launch {
-            val historyPairs = _chatMessages.value.map { it.sender to it.text }
-            val answer = repository.queryAiAssistant(user.id, q, historyPairs, isEnglish, sym)
-            val aiMsg = ChatMessage(id = (System.currentTimeMillis() + 1).toString(), sender = "ai", text = answer)
-            _chatMessages.value = _chatMessages.value + aiMsg
-            _isAiLoading.value = false
+            if (AiFinancialAnalyticsEngine.isChartOrAnalyticalRequest(q)) {
+                delay(300)
+                val responseMsg = AiFinancialAnalyticsEngine.processAnalyticalQuery(
+                    currentUser = user,
+                    allTransactions = _allTransactions.value,
+                    query = q,
+                    isEnglish = isEnglish,
+                    selectedCurrency = _selectedCurrency.value
+                )
+                _chatMessages.value = _chatMessages.value + responseMsg
+                _isAiLoading.value = false
+            } else {
+                val historyPairs = _chatMessages.value.map { it.sender to it.text }
+                val answer = repository.queryAiAssistant(user.id, q, historyPairs, isEnglish, sym)
+                val aiMsg = ChatMessage(id = (System.currentTimeMillis() + 1).toString(), sender = "ai", text = answer)
+                _chatMessages.value = _chatMessages.value + aiMsg
+                _isAiLoading.value = false
+            }
         }
     }
 

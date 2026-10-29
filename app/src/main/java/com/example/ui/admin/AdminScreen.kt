@@ -1,5 +1,6 @@
 package com.example.ui.admin
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -95,6 +96,7 @@ import com.example.ui.theme.FinanceOnPrimary
 import com.example.ui.theme.FinancePrimary
 import com.example.ui.theme.FinanceSecondaryContainer
 import com.example.ui.theme.FinanceSuccess
+import com.example.ui.theme.FinanceSuccessContainer
 import com.example.util.Localization
 import java.util.Locale
 
@@ -174,12 +176,12 @@ fun AdminScreen(
                             text = Localization.t("admin_title", lang),
                             style = MaterialTheme.typography.titleLarge.copy(
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF111827)
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = FinanceBackground)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
             )
         },
         floatingActionButton = {
@@ -206,7 +208,7 @@ fun AdminScreen(
                 }
             }
         },
-        containerColor = FinanceBackground,
+        containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier.fillMaxSize()
     ) { innerPadding ->
         Column(
@@ -218,7 +220,7 @@ fun AdminScreen(
             // Selector de Pestañas internacionalizado según el idioma seleccionado
             ScrollableTabRow(
                 selectedTabIndex = selectedTab,
-                containerColor = FinanceBackground,
+                containerColor = MaterialTheme.colorScheme.background,
                 contentColor = FinancePrimary,
                 edgePadding = 0.dp
             ) {
@@ -657,7 +659,8 @@ fun InstitutionsManagementSection(
                 items(filteredList, key = { it.id }) { inst ->
                     Card(
                         shape = RoundedCornerShape(14.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                         modifier = Modifier.fillMaxWidth().testTag("institution_item_${inst.id}")
                     ) {
@@ -674,14 +677,14 @@ fun InstitutionsManagementSection(
                                     Box(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(6.dp))
-                                            .background(if (inst.type == "BANCO") Color(0xFFEFF6FF) else Color(0xFFF3E8FF))
+                                            .background(if (inst.type == "BANCO") MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer)
                                             .padding(horizontal = 8.dp, vertical = 3.dp)
                                     ) {
                                         Text(
                                             text = inst.type,
                                             style = MaterialTheme.typography.labelSmall.copy(
                                                 fontWeight = FontWeight.Bold,
-                                                color = if (inst.type == "BANCO") Color(0xFF1D4ED8) else Color(0xFF7E22CE)
+                                                color = if (inst.type == "BANCO") MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSecondaryContainer
                                             )
                                         )
                                     }
@@ -689,7 +692,7 @@ fun InstitutionsManagementSection(
                                     Text(
                                         text = "📍 ${inst.country}",
                                         style = MaterialTheme.typography.labelSmall.copy(
-                                            color = Color(0xFF4B5563),
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             fontWeight = FontWeight.Medium
                                         )
                                     )
@@ -698,14 +701,14 @@ fun InstitutionsManagementSection(
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(6.dp))
-                                        .background(if (inst.isActive) Color(0xFFDCFCE7) else Color(0xFFFEF3C7))
+                                        .background(if (inst.isActive) FinanceSuccessContainer else MaterialTheme.colorScheme.surfaceVariant)
                                         .padding(horizontal = 8.dp, vertical = 3.dp)
                                 ) {
                                     Text(
                                         text = if (inst.isActive) "ACTIVA" else "DESHABILITADA",
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             fontWeight = FontWeight.Bold,
-                                            color = if (inst.isActive) Color(0xFF15803D) else Color(0xFFB45309)
+                                            color = if (inst.isActive) FinanceSuccess else Color(0xFFB45309)
                                         )
                                     )
                                 }
@@ -717,7 +720,7 @@ fun InstitutionsManagementSection(
                                 text = "${inst.fullName}${if (inst.abbreviation.isNotBlank()) " (${inst.abbreviation})" else ""}",
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF111827)
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                             )
 
@@ -967,7 +970,8 @@ fun UsersManagementSection(
 
                     Card(
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                         modifier = Modifier.fillMaxWidth().testTag("user_card_${user.id}")
                     ) {
@@ -983,7 +987,7 @@ fun UsersManagementSection(
                                             text = "${user.firstName} ${user.lastName}",
                                             style = MaterialTheme.typography.titleMedium.copy(
                                                 fontWeight = FontWeight.Bold,
-                                                color = Color(0xFF111827)
+                                                color = MaterialTheme.colorScheme.onSurface
                                             )
                                         )
                                         if (isMe) {
@@ -1257,7 +1261,8 @@ fun SecurityDirectivesSection(
 
         Card(
             shape = RoundedCornerShape(14.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1297,7 +1302,8 @@ fun SecurityDirectivesSection(
 
         Card(
             shape = RoundedCornerShape(14.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1336,7 +1342,8 @@ fun SecurityDirectivesSection(
 
         Card(
             shape = RoundedCornerShape(14.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1517,7 +1524,8 @@ fun CategoriesManagementSection(
         items(categories, key = { it.id }) { cat ->
             Card(
                 shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -1533,7 +1541,7 @@ fun CategoriesManagementSection(
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(CircleShape)
-                                .background(if (cat.type == "INCOME") Color(0xFFDCFCE7) else Color(0xFFFEE2E2)),
+                                .background(if (cat.type == "INCOME") FinanceSuccessContainer else MaterialTheme.colorScheme.errorContainer),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
@@ -1548,12 +1556,12 @@ fun CategoriesManagementSection(
                                 text = cat.name,
                                 style = MaterialTheme.typography.titleSmall.copy(
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF111827)
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                             )
                             Text(
                                 text = if (cat.type == "INCOME") "Tipo: Ingreso" else "Tipo: Gasto",
-                                style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF6B7280))
+                                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                             )
                         }
                     }
@@ -1680,6 +1688,6 @@ fun AddCategoryDialog(
             }
         },
         shape = RoundedCornerShape(18.dp),
-        containerColor = Color.White
+        containerColor = MaterialTheme.colorScheme.surface
     )
 }

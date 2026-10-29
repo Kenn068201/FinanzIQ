@@ -1,5 +1,6 @@
 package com.example.ui.admin
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -50,6 +51,7 @@ import com.example.ui.theme.FinanceError
 import com.example.ui.theme.FinancePrimary
 import com.example.ui.theme.FinanceSecondaryContainer
 import com.example.ui.theme.FinanceSuccess
+import com.example.ui.theme.FinanceSuccessContainer
 
 /**
  * Sección de Control de Versiones de la Aplicación.
@@ -90,7 +92,8 @@ fun VersionControlSection(
         // Formulario de Publicación de Nueva Versión
         Card(
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -194,7 +197,7 @@ fun VersionControlSection(
                                 text = if (isMandatory) "Actualización OBLIGATORIA" else "Actualización OPCIONAL",
                                 style = MaterialTheme.typography.titleSmall.copy(
                                     fontWeight = FontWeight.Bold,
-                                    color = if (isMandatory) FinanceError else Color(0xFF0F172A)
+                                    color = if (isMandatory) FinanceError else MaterialTheme.colorScheme.onSurface
                                 )
                             )
                             Spacer(modifier = Modifier.height(2.dp))
@@ -203,7 +206,7 @@ fun VersionControlSection(
                                     "Los usuarios con versiones anteriores no podrán usar la app hasta actualizar."
                                 else
                                     "Los usuarios recibirán aviso pero podrán continuar usando la app sin actualizar.",
-                                style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF64748B))
+                                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                             )
                         }
 
@@ -256,7 +259,7 @@ fun VersionControlSection(
         // Historial de Versiones Publicadas
         Text(
             text = "Historial de Versiones Registradas (${versions.size}):",
-            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
         )
 
         LazyColumn(
@@ -269,7 +272,8 @@ fun VersionControlSection(
 
                 Card(
                     shape = RoundedCornerShape(14.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                     elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                     modifier = Modifier.fillMaxWidth().testTag("version_card_${ver.versionNumber}")
                 ) {
@@ -284,7 +288,7 @@ fun VersionControlSection(
                                     text = "v${ver.versionNumber}",
                                     style = MaterialTheme.typography.titleMedium.copy(
                                         fontWeight = FontWeight.ExtraBold,
-                                        color = Color(0xFF0F172A)
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
                                 )
 
@@ -293,14 +297,14 @@ fun VersionControlSection(
                                     Box(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(4.dp))
-                                            .background(Color(0xFFE0E7FF))
+                                            .background(MaterialTheme.colorScheme.primaryContainer)
                                             .padding(horizontal = 6.dp, vertical = 2.dp)
                                     ) {
                                         Text(
                                             text = "VIGENTE",
                                             style = MaterialTheme.typography.labelSmall.copy(
                                                 fontWeight = FontWeight.Bold,
-                                                color = Color(0xFF4338CA),
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer,
                                                 fontSize = 9.sp
                                             )
                                         )
@@ -311,14 +315,14 @@ fun VersionControlSection(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(6.dp))
-                                    .background(if (ver.isMandatory) Color(0xFFFEE2E2) else Color(0xFFDCFCE7))
+                                    .background(if (ver.isMandatory) MaterialTheme.colorScheme.errorContainer else FinanceSuccessContainer)
                                     .padding(horizontal = 8.dp, vertical = 3.dp)
                             ) {
                                 Text(
                                     text = if (ver.isMandatory) "OBLIGATORIA" else "OPCIONAL",
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = FontWeight.Bold,
-                                        color = if (ver.isMandatory) FinanceError else Color(0xFF15803D),
+                                        color = if (ver.isMandatory) MaterialTheme.colorScheme.onErrorContainer else FinanceSuccess,
                                         fontSize = 10.sp
                                     )
                                 )
@@ -328,18 +332,18 @@ fun VersionControlSection(
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "Lanzada el: ${ver.releaseDate}",
-                            style = MaterialTheme.typography.labelSmall.copy(color = Color.Gray)
+                            style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                         )
 
                         Spacer(modifier = Modifier.height(8.dp))
                         Card(
                             shape = RoundedCornerShape(8.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
                                 text = ver.releaseNotes,
-                                style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF334155)),
+                                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurface),
                                 modifier = Modifier.padding(10.dp)
                             )
                         }

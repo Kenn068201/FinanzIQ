@@ -116,11 +116,11 @@ fun BudgetsScreen(
                         text = "Presupuestos Mensuales",
                         style = MaterialTheme.typography.titleLarge.copy(
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF0F172A)
+                            color = MaterialTheme.colorScheme.onBackground
                         )
                     )
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = FinanceBackground)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
             )
         },
         floatingActionButton = {
@@ -133,7 +133,7 @@ fun BudgetsScreen(
                 Icon(Icons.Default.Add, contentDescription = "Crear Presupuesto")
             }
         },
-        containerColor = FinanceBackground,
+        containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier.fillMaxSize()
     ) { innerPadding ->
         LazyColumn(
@@ -147,7 +147,7 @@ fun BudgetsScreen(
             item {
                 Card(
                     shape = RoundedCornerShape(18.dp),
-                    colors = CardDefaults.cardColors(containerColor = FinanceSecondaryContainer.copy(alpha = 0.5f)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
@@ -163,14 +163,14 @@ fun BudgetsScreen(
                                 text = "Control de Límites Mensuales",
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF004C73)
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
                                 )
                             )
                         }
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
                             text = "Establece metas de gasto por categoría. Te avisaremos cuando alcances el 80% o sobrepases tu límite establecido.",
-                            style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF4B5563))
+                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.85f))
                         )
                     }
                 }
@@ -237,8 +237,12 @@ fun BudgetsScreen(
 
                     Card(
                         shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = CardDefaults.outlinedCardBorder().copy(
+                            brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.outlineVariant),
+                            width = 1.dp
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(18.dp)) {
@@ -252,18 +256,18 @@ fun BudgetsScreen(
                                         text = "Presupuesto General del Mes",
                                         style = MaterialTheme.typography.titleMedium.copy(
                                             fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF0F172A)
+                                            color = MaterialTheme.colorScheme.onSurface
                                         )
                                     )
                                     Text(
                                         text = "${budgets.size} categorías presupuestadas",
-                                        style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF64748B))
+                                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     )
                                 }
 
                                 Surface(
                                     shape = RoundedCornerShape(12.dp),
-                                    color = globalColor.copy(alpha = 0.12f)
+                                    color = globalColor.copy(alpha = 0.15f)
                                 ) {
                                     Text(
                                         text = when {
@@ -286,7 +290,7 @@ fun BudgetsScreen(
                             LinearProgressIndicator(
                                 progress = { totalProgress.coerceAtMost(1f) },
                                 color = globalColor,
-                                trackColor = Color(0xFFE2E8F0),
+                                trackColor = MaterialTheme.colorScheme.surfaceVariant,
                                 strokeCap = StrokeCap.Round,
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -302,7 +306,7 @@ fun BudgetsScreen(
                                 Column {
                                     Text(
                                         text = "Total Gastado",
-                                        style = MaterialTheme.typography.labelSmall.copy(color = Color(0xFF64748B))
+                                        style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     )
                                     Text(
                                         text = formatCordobas(totalSpent),
@@ -315,13 +319,13 @@ fun BudgetsScreen(
                                 Column(horizontalAlignment = Alignment.End) {
                                     Text(
                                         text = "Límite Global",
-                                        style = MaterialTheme.typography.labelSmall.copy(color = Color(0xFF64748B))
+                                        style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     )
                                     Text(
                                         text = formatCordobas(totalBudgetLimit),
                                         style = MaterialTheme.typography.titleMedium.copy(
                                             fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF0F172A)
+                                            color = MaterialTheme.colorScheme.onSurface
                                         )
                                     )
                                 }
@@ -348,7 +352,7 @@ fun BudgetsScreen(
                                 text = "No tienes presupuestos activos",
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF6B7280)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             )
                             Spacer(modifier = Modifier.height(8.dp))
@@ -414,8 +418,12 @@ fun BudgetProgressCard(
 
     Card(
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = CardDefaults.outlinedCardBorder().copy(
+            brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.outlineVariant),
+            width = 1.dp
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         modifier = modifier
             .fillMaxWidth()
             .testTag("budget_card_${budget.category}")
@@ -442,7 +450,7 @@ fun BudgetProgressCard(
                             text = budget.category,
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF0F172A)
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         )
                         Text(
@@ -463,7 +471,7 @@ fun BudgetProgressCard(
                     Icon(
                         imageVector = Icons.Default.Delete,
                         contentDescription = "Eliminar presupuesto",
-                        tint = Color(0xFF94A3B8),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -475,7 +483,7 @@ fun BudgetProgressCard(
             LinearProgressIndicator(
                 progress = { progress.coerceAtMost(1f) },
                 color = progressColor,
-                trackColor = Color(0xFFE2E8F0),
+                trackColor = MaterialTheme.colorScheme.surfaceVariant,
                 strokeCap = StrokeCap.Round,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -491,14 +499,14 @@ fun BudgetProgressCard(
                 Text(
                     text = "Gastado: ${formatCordobas(spent)}",
                     style = MaterialTheme.typography.bodyMedium.copy(
-                        color = Color(0xFF475569),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.Medium
                     )
                 )
                 Text(
                     text = "Límite: ${formatCordobas(budget.monthlyLimit)}",
                     style = MaterialTheme.typography.bodyMedium.copy(
-                        color = Color(0xFF0F172A),
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Bold
                     )
                 )
@@ -654,6 +662,6 @@ fun AddBudgetDialog(
             }
         },
         shape = RoundedCornerShape(18.dp),
-        containerColor = Color.White
+        containerColor = MaterialTheme.colorScheme.surface
     )
 }

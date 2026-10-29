@@ -130,15 +130,16 @@ fun MetricStatCard(
     value: String,
     icon: ImageVector,
     iconColor: Color,
-    backgroundColor: Color = Color.White,
+    backgroundColor: Color? = null,
     modifier: Modifier = Modifier,
     subtitle: String? = null
 ) {
+    val containerBg = backgroundColor ?: MaterialTheme.colorScheme.surface
     Card(
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = backgroundColor),
+        colors = CardDefaults.cardColors(containerColor = containerBg),
         border = CardDefaults.outlinedCardBorder().copy(
-            brush = androidx.compose.ui.graphics.SolidColor(FinanceOutlineVariant),
+            brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.outlineVariant),
             width = 1.dp
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
@@ -157,7 +158,7 @@ fun MetricStatCard(
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.8.sp,
-                        color = Color(0xFF64748B)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 )
                 Box(
@@ -180,7 +181,7 @@ fun MetricStatCard(
                 text = value,
                 style = MaterialTheme.typography.titleLarge.copy(
                     fontWeight = FontWeight.ExtraBold,
-                    color = Color(0xFF0F172A)
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             )
             if (subtitle != null) {
@@ -188,7 +189,7 @@ fun MetricStatCard(
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodySmall.copy(
-                        color = Color(0xFF64748B),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 11.sp
                     )
                 )
@@ -217,7 +218,7 @@ fun SectionHeader(
             style = MaterialTheme.typography.labelMedium.copy(
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 0.6.sp,
-                color = Color(0xFF0F172A)
+                color = MaterialTheme.colorScheme.onSurface
             )
         )
         if (actionText != null && onActionClick != null) {

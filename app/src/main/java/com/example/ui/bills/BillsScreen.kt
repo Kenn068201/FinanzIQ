@@ -126,11 +126,11 @@ fun BillsScreen(
                         text = Localization.t("bills_title", lang),
                         style = MaterialTheme.typography.titleLarge.copy(
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF111827)
+                            color = MaterialTheme.colorScheme.onBackground
                         )
                     )
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = FinanceBackground)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
             )
         },
         floatingActionButton = {
@@ -143,7 +143,7 @@ fun BillsScreen(
                 Icon(Icons.Default.Add, contentDescription = Localization.t("add_bill_btn", lang))
             }
         },
-        containerColor = FinanceBackground,
+        containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier.fillMaxSize()
     ) { innerPadding ->
         LazyColumn(
@@ -158,7 +158,7 @@ fun BillsScreen(
                 Card(
                     shape = RoundedCornerShape(18.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = if (pendingBills.isNotEmpty()) FinanceWarningContainer.copy(alpha = 0.5f) else FinanceSuccessContainer.copy(alpha = 0.5f)
+                        containerColor = if (pendingBills.isNotEmpty()) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceVariant
                     ),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -192,7 +192,7 @@ fun BillsScreen(
                                 },
                                 style = MaterialTheme.typography.titleSmall.copy(
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF111827)
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                             )
                             Text(
@@ -203,7 +203,7 @@ fun BillsScreen(
                                     if (lang == AppLanguage.SPANISH) "No tienes cuentas pendientes por pagar este mes."
                                     else "You have no unpaid bills this month."
                                 },
-                                style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF4B5563))
+                                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                             )
                         }
                     }
@@ -424,7 +424,7 @@ fun BillsScreen(
                     }
                 },
                 shape = RoundedCornerShape(18.dp),
-                containerColor = Color.White
+                containerColor = MaterialTheme.colorScheme.surface
             )
         }
     }
@@ -449,9 +449,13 @@ fun BillReminderCardItem(
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (bill.isPaid) Color(0xFFF9FAFB) else Color.White
+            containerColor = if (bill.isPaid) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (bill.isPaid) 0.dp else 1.5.dp),
+        border = CardDefaults.outlinedCardBorder().copy(
+            brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.outlineVariant),
+            width = 1.dp
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         modifier = modifier
             .fillMaxWidth()
             .testTag("bill_item_${bill.id}")
@@ -475,14 +479,14 @@ fun BillReminderCardItem(
                         text = bill.title,
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.Bold,
-                            color = if (bill.isPaid) Color(0xFF9CA3AF) else Color(0xFF111827)
+                            color = if (bill.isPaid) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
                         )
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = "${Localization.t("bill_due_date", lang)}: $dueDateStr",
                             style = MaterialTheme.typography.bodySmall.copy(
-                                color = if (bill.isPaid) Color(0xFF9CA3AF) else if (daysLeft <= 1) FinanceError else Color(0xFF6B7280),
+                                color = if (bill.isPaid) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f) else if (daysLeft <= 1) FinanceError else MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontWeight = if (!bill.isPaid && daysLeft <= 1) FontWeight.Bold else FontWeight.Normal
                             )
                         )
@@ -504,14 +508,14 @@ fun BillReminderCardItem(
                     text = formatCordobas(bill.amount),
                     style = MaterialTheme.typography.titleSmall.copy(
                         fontWeight = FontWeight.Bold,
-                        color = if (bill.isPaid) Color(0xFF9CA3AF) else Color(0xFF111827)
+                        color = if (bill.isPaid) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
                     )
                 )
                 IconButton(onClick = onDelete) {
                     Icon(
                         imageVector = Icons.Default.Delete,
                         contentDescription = "Eliminar",
-                        tint = Color(0xFF9CA3AF),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -689,7 +693,7 @@ fun AddBillDialog(
             }
         },
         shape = RoundedCornerShape(18.dp),
-        containerColor = Color.White
+        containerColor = MaterialTheme.colorScheme.surface
     )
 }
 
@@ -912,6 +916,6 @@ fun PayBillDialog(
             }
         },
         shape = RoundedCornerShape(18.dp),
-        containerColor = Color.White
+        containerColor = MaterialTheme.colorScheme.surface
     )
 }

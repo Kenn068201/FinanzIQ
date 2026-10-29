@@ -1,6 +1,7 @@
 package com.example.ui.wallets
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -195,7 +196,8 @@ fun ManageFinancialToolScreen(
             if (disabledInstitutions.isNotEmpty()) {
                 Card(
                     shape = RoundedCornerShape(14.dp),
-                    colors = CardDefaults.cardColors(containerColor = androidx.compose.ui.graphics.Color(0xFFFEF3C7)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                     modifier = Modifier.fillMaxWidth().testTag("deactivated_institutions_warning_box")
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
@@ -203,7 +205,7 @@ fun ManageFinancialToolScreen(
                             Icon(
                                 imageVector = Icons.Default.Link,
                                 contentDescription = null,
-                                tint = androidx.compose.ui.graphics.Color(0xFFD97706),
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
@@ -211,7 +213,7 @@ fun ManageFinancialToolScreen(
                                 text = "Aviso: Entidades Deshabilitadas",
                                 style = MaterialTheme.typography.titleSmall.copy(
                                     fontWeight = FontWeight.Bold,
-                                    color = androidx.compose.ui.graphics.Color(0xFF92400E)
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                             )
                         }
@@ -220,7 +222,7 @@ fun ManageFinancialToolScreen(
                             text = "No se pueden vincular nuevas cuentas a las siguientes entidades por disposición administrativa:\n" +
                                 disabledInstitutions.joinToString("\n") { "• ${it.fullName}: ${it.statusReason}" },
                             style = MaterialTheme.typography.bodySmall.copy(
-                                color = androidx.compose.ui.graphics.Color(0xFF78350F),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 lineHeight = 18.sp
                             )
                         )

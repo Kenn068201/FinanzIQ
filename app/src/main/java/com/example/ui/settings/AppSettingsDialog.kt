@@ -163,17 +163,17 @@ fun AppSettingsDialog(
                             )
                             Text(
                                 text = "@${currentUser?.username?.ifBlank { currentUser?.email } ?: ""}",
-                                style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF6B7280))
+                                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                             )
                             Text(
                                 text = "${currentUser?.phonePrefix} ${currentUser?.phone}",
-                                style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF6B7280), fontSize = 11.sp)
+                                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
                             )
                         }
                     }
                 }
 
-                HorizontalDivider(color = Color(0xFFE2E8F0))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
                 // 1. Selector de Idioma de la Aplicación
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -213,7 +213,7 @@ fun AppSettingsDialog(
                     }
                 }
 
-                HorizontalDivider(color = Color(0xFFE2E8F0))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
                 // 2. Selector de Moneda y Conversión con Tipos de Cambio Oficiales
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -257,7 +257,7 @@ fun AppSettingsDialog(
                                             )
                                             Text(
                                                 text = CurrencyConversionUtil.getOfficialRateDescription(curr.code),
-                                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, color = Color.Gray)
+                                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                             )
                                         }
                                     },
@@ -273,7 +273,8 @@ fun AppSettingsDialog(
                     // Detalle del tipo de cambio oficial aplicado
                     Card(
                         shape = RoundedCornerShape(8.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF1F5F9)),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(10.dp)) {
@@ -281,7 +282,7 @@ fun AppSettingsDialog(
                                 text = "💱 " + CurrencyConversionUtil.getOfficialRateDescription(selectedCurr.code),
                                 style = MaterialTheme.typography.bodySmall.copy(
                                     fontWeight = FontWeight.Medium,
-                                    color = Color(0xFF1E293B)
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                             )
                             if (selectedCurr.code != "NIO") {
@@ -298,7 +299,7 @@ fun AppSettingsDialog(
                     }
                 }
 
-                HorizontalDivider(color = Color(0xFFE2E8F0))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
                 // 3. Modo Oscuro o Claro
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -335,15 +336,15 @@ fun AppSettingsDialog(
                             label = { Text(if (selectedLang == AppLanguage.SPANISH) "Modo Oscuro" else "Dark Mode") },
                             leadingIcon = { Icon(Icons.Default.DarkMode, contentDescription = null, modifier = Modifier.size(16.dp)) },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = Color(0xFF334155),
-                                selectedLabelColor = Color.White
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
                             ),
                             modifier = Modifier.weight(1f).testTag("settings_theme_dark")
                         )
                     }
                 }
 
-                HorizontalDivider(color = Color(0xFFE2E8F0))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
                 // 4. Preferencias Generales
                 Text(
@@ -363,7 +364,7 @@ fun AppSettingsDialog(
                         )
                         Text(
                             text = if (selectedLang == AppLanguage.SPANISH) "Avisos de facturas y presupuestos" else "Bill and budget alerts",
-                            style = MaterialTheme.typography.bodySmall.copy(color = Color.Gray, fontSize = 11.sp)
+                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
                         )
                     }
                     Switch(checked = notificationsEnabled, onCheckedChange = { notificationsEnabled = it })
@@ -381,13 +382,13 @@ fun AppSettingsDialog(
                         )
                         Text(
                             text = if (selectedLang == AppLanguage.SPANISH) "Enmascara los números en pantalla" else "Mask numbers on screen",
-                            style = MaterialTheme.typography.bodySmall.copy(color = Color.Gray, fontSize = 11.sp)
+                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
                         )
                     }
                     Switch(checked = hideBalancesEnabled, onCheckedChange = { hideBalancesEnabled = it })
                 }
 
-                HorizontalDivider(color = Color(0xFFE2E8F0))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
                 // Botón de Cerrar Sesión
                 OutlinedButton(

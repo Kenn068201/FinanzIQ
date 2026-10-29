@@ -1,6 +1,7 @@
 package com.example.ui.wallets
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -226,7 +227,8 @@ fun WalletsScreen(
                 item {
                     Card(
                         shape = RoundedCornerShape(14.dp),
-                        colors = CardDefaults.cardColors(containerColor = androidx.compose.ui.graphics.Color(0xFFFEF3C7)),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(bottom = 2.dp)
@@ -238,7 +240,7 @@ fun WalletsScreen(
                             Icon(
                                 imageVector = Icons.Default.Info,
                                 contentDescription = null,
-                                tint = androidx.compose.ui.graphics.Color(0xFFD97706),
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier
                                     .size(24.dp)
                                     .padding(top = 2.dp)
@@ -249,7 +251,7 @@ fun WalletsScreen(
                                     text = "Aviso a Usuarios: Entidades Deshabilitadas",
                                     style = MaterialTheme.typography.titleSmall.copy(
                                         fontWeight = FontWeight.Bold,
-                                        color = androidx.compose.ui.graphics.Color(0xFF92400E)
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
@@ -258,7 +260,7 @@ fun WalletsScreen(
                                         disabledInstitutions.joinToString("\n") { "• ${it.fullName}: ${it.statusReason}" } +
                                         "\n(Sus cuentas y billeteras previamente vinculadas continúan operando con normalidad).",
                                     style = MaterialTheme.typography.bodySmall.copy(
-                                        color = androidx.compose.ui.graphics.Color(0xFF78350F),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         lineHeight = 18.sp
                                     )
                                 )
@@ -437,13 +439,10 @@ fun FinancialAccountCard(
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = cardBackground),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = if (isActive) 2.dp else 0.dp),
         modifier = modifier
             .fillMaxWidth()
-            .then(
-                if (!isActive) Modifier.border(1.dp, Color(0xFFCBD5E1), RoundedCornerShape(16.dp))
-                else Modifier
-            )
             .testTag("account_card_${account.id}")
     ) {
         Column(
@@ -466,10 +465,10 @@ fun FinancialAccountCard(
                             .size(44.dp)
                             .clip(CircleShape)
                             .background(
-                                if (!isActive) Color(0xFFE2E8F0)
-                                else if (isWallet) Color(0xFFE0F2FE)
-                                else if (isCredit) Color(0xFFFEF3C7)
-                                else FinanceSecondaryContainer
+                                if (!isActive) MaterialTheme.colorScheme.surfaceVariant
+                                else if (isWallet) MaterialTheme.colorScheme.secondaryContainer
+                                else if (isCredit) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+                                else MaterialTheme.colorScheme.primaryContainer
                             ),
                         contentAlignment = Alignment.Center
                     ) {
@@ -601,18 +600,18 @@ fun FinancialAccountCard(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFFFEF3C7).copy(alpha = if (isActive) 0.8f else 0.4f), RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (isActive) 0.8f else 0.4f), RoundedCornerShape(8.dp))
                         .padding(horizontal = 10.dp, vertical = 6.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
                         text = "${Localization.t("credit_limit_label", lang)}:",
-                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold, color = Color(0xFF92400E))
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
                     )
                     Text(
                         text = formatCurrency(account.creditLimit),
-                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold, color = Color(0xFF92400E))
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     )
                 }
             }
@@ -623,7 +622,7 @@ fun FinancialAccountCard(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFFF1F5F9).copy(alpha = if (isActive) 1f else 0.5f), RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (isActive) 0.8f else 0.4f), RoundedCornerShape(8.dp))
                         .padding(horizontal = 10.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {

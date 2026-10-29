@@ -285,7 +285,7 @@ fun AddFinancialInstitutionDialog(
             }
         },
         shape = RoundedCornerShape(18.dp),
-        containerColor = Color.White
+        containerColor = MaterialTheme.colorScheme.surface
     )
 }
 
@@ -378,7 +378,7 @@ fun ActionReasonDialog(
             }
         },
         shape = RoundedCornerShape(18.dp),
-        containerColor = Color.White
+        containerColor = MaterialTheme.colorScheme.surface
     )
 }
 
@@ -521,13 +521,13 @@ fun UserAccountsReviewDialog(
                                             text = "Saldo: ${user.preferredCurrency.split(" ").firstOrNull() ?: "$"} ${String.format(Locale.US, "%,.2f", acc.balance)}",
                                             style = MaterialTheme.typography.bodyMedium.copy(
                                                 fontWeight = FontWeight.Bold,
-                                                color = Color(0xFF111827)
+                                                color = MaterialTheme.colorScheme.onSurface
                                             )
                                         )
                                         if (acc.creditLimit > 0.0) {
                                             Text(
                                                 text = "Límite: ${String.format(Locale.US, "%,.2f", acc.creditLimit)}",
-                                                style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF6B7280))
+                                                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                                             )
                                         }
                                     }
@@ -547,6 +547,6 @@ fun UserAccountsReviewDialog(
             }
         },
         shape = RoundedCornerShape(18.dp),
-        containerColor = Color.White
+        containerColor = MaterialTheme.colorScheme.surface
     )
 }

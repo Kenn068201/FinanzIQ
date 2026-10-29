@@ -1,5 +1,6 @@
 package com.example.ui.analytics
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -167,6 +168,8 @@ fun AnalyticsScreen(
 
     val maxCategoryAmount = categorySpendings.maxOfOrNull { it.totalAmount }?.coerceAtLeast(1.0) ?: 1.0
 
+    // Interfaz de Análisis Financiero: Se adaptan los contenedores y tipografías al tema dinámico (Light/Dark)
+    // para asegurar homogeneidad visual con el resto de módulos de la aplicación.
     Scaffold(
         topBar = {
             TopAppBar(
@@ -175,7 +178,7 @@ fun AnalyticsScreen(
                         text = Localization.t("analytics_title", lang),
                         style = MaterialTheme.typography.titleLarge.copy(
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF0F172A)
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     )
                 },
@@ -183,8 +186,8 @@ fun AnalyticsScreen(
                     FilledTonalButton(
                         onClick = { showExportPdfDialog = true },
                         colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = Color(0xFFFEE2E2),
-                            contentColor = Color(0xFFDC2626)
+                            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.8f),
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer
                         ),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier
@@ -194,7 +197,7 @@ fun AnalyticsScreen(
                         Icon(
                             imageVector = Icons.Default.PictureAsPdf,
                             contentDescription = "Exportar PDF",
-                            tint = Color(0xFFDC2626),
+                            tint = MaterialTheme.colorScheme.error,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
@@ -202,15 +205,15 @@ fun AnalyticsScreen(
                             text = if (lang == com.example.util.AppLanguage.ENGLISH) "Export PDF" else "Exportar PDF",
                             style = MaterialTheme.typography.labelMedium.copy(
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFFDC2626)
+                                color = MaterialTheme.colorScheme.error
                             )
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = FinanceBackground)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
             )
         },
-        containerColor = FinanceBackground,
+        containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier.fillMaxSize()
     ) { innerPadding ->
         LazyColumn(
@@ -220,14 +223,12 @@ fun AnalyticsScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Tarjeta destacada de Exportar Reporte PDF
+            // Tarjeta destacada de Exportar Reporte PDF adaptada a colorScheme.surface
             item {
                 Card(
                     shape = RoundedCornerShape(18.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    border = CardDefaults.outlinedCardBorder().copy(
-                        brush = androidx.compose.ui.graphics.SolidColor(Color(0xFFE2E8F0))
-                    ),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { showExportPdfDialog = true }
@@ -243,13 +244,13 @@ fun AnalyticsScreen(
                                 modifier = Modifier
                                     .size(42.dp)
                                     .clip(RoundedCornerShape(12.dp))
-                                    .background(Color(0xFFFEE2E2)),
+                                    .background(MaterialTheme.colorScheme.errorContainer),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.PictureAsPdf,
                                     contentDescription = null,
-                                    tint = Color(0xFFDC2626),
+                                    tint = MaterialTheme.colorScheme.error,
                                     modifier = Modifier.size(24.dp)
                                 )
                             }
@@ -259,7 +260,7 @@ fun AnalyticsScreen(
                                     text = if (lang == com.example.util.AppLanguage.ENGLISH) "Export PDF Financial Report" else "Exportar Reporte Financiero PDF",
                                     style = MaterialTheme.typography.titleSmall.copy(
                                         fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF0F172A)
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
                                 )
                                 Text(
@@ -267,19 +268,20 @@ fun AnalyticsScreen(
                                         "2 Tables: Balance & Breakdown by Accounts"
                                     else
                                         "2 Tablas: Balance General y Cuentas Vinculadas",
-                                    style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF64748B), fontSize = 11.sp)
+                                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
                                 )
                             }
                         }
                         Button(
                             onClick = { showExportPdfDialog = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                             shape = RoundedCornerShape(10.dp)
                         ) {
                             Text(
                                 text = if (lang == com.example.util.AppLanguage.ENGLISH) "Export" else "Exportar",
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onError
                             )
                         }
                     }
@@ -313,11 +315,12 @@ fun AnalyticsScreen(
                 }
             }
 
-            // Ficha de ingresos y gastos
+            // Ficha de ingresos y gastos con soporte estricto para modo oscuro
             item {
                 Card(
                     shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -336,17 +339,17 @@ fun AnalyticsScreen(
                                 text = Localization.t("analytics_cashflow_title", lang, activePeriodLabel),
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF1E293B)
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                             )
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
-                                color = if (periodBalance >= 0) FinanceSuccessContainer else Color(0xFFFEE2E2)
+                                color = if (periodBalance >= 0) FinanceSuccessContainer else MaterialTheme.colorScheme.errorContainer
                             ) {
                                 Text(
                                     text = if (periodBalance >= 0) Localization.t("analytics_surplus", lang) else Localization.t("analytics_deficit", lang),
                                     style = MaterialTheme.typography.labelMedium.copy(
-                                        color = if (periodBalance >= 0) FinanceSuccess else FinanceError,
+                                        color = if (periodBalance >= 0) FinanceSuccess else MaterialTheme.colorScheme.onErrorContainer,
                                         fontWeight = FontWeight.Bold
                                     ),
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
@@ -362,7 +365,7 @@ fun AnalyticsScreen(
                                 .fillMaxWidth()
                                 .height(16.dp)
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(Color(0xFFE2E8F0))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
                         ) {
                             if (incomeRatio > 0) {
                                 Box(
@@ -395,7 +398,7 @@ fun AnalyticsScreen(
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
                                         Localization.t("analytics_incomes_pct", lang, String.format(Locale.US, "%.0f", incomeRatio * 100)),
-                                        style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF64748B))
+                                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     )
                                 }
                                 Text(formatCordobas(periodIncome), style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = FinanceSuccess))
@@ -407,7 +410,7 @@ fun AnalyticsScreen(
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
                                         Localization.t("analytics_expenses_pct", lang, String.format(Locale.US, "%.0f", expenseRatio * 100)),
-                                        style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF64748B))
+                                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     )
                                 }
                                 Text(formatCordobas(totalExpenseAmount), style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = FinanceError))
@@ -418,7 +421,7 @@ fun AnalyticsScreen(
 
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = FinanceSecondaryContainer.copy(alpha = 0.5f),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
@@ -430,7 +433,7 @@ fun AnalyticsScreen(
                             ) {
                                 Text(
                                     text = Localization.t("analytics_net_balance", lang),
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium, color = Color(0xFF0F172A))
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
                                 )
                                 Text(
                                     text = formatCordobas(periodBalance),
@@ -480,7 +483,8 @@ fun AnalyticsScreen(
             item {
                 Card(
                     shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -502,13 +506,13 @@ fun AnalyticsScreen(
                                     text = Localization.t("analytics_expense_by_cat", lang),
                                     style = MaterialTheme.typography.titleSmall.copy(
                                         fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF0F172A)
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
                                 )
                             }
                             Text(
                                 text = Localization.t("analytics_tap_subcategories", lang),
-                                style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF64748B), fontSize = 11.sp)
+                                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
                             )
                         }
 
@@ -523,7 +527,7 @@ fun AnalyticsScreen(
                             ) {
                                 Text(
                                     text = Localization.t("analytics_no_expenses_filter", lang),
-                                    style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF94A3B8))
+                                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 )
                             }
                         } else {
@@ -553,7 +557,7 @@ fun AnalyticsScreen(
                                             text = "${String.format(Locale.US, "%.0f", item.percentageOfTotal)}%",
                                             style = MaterialTheme.typography.labelSmall.copy(
                                                 fontWeight = FontWeight.Bold,
-                                                color = if (isSelected) FinancePrimary else Color(0xFF64748B),
+                                                color = if (isSelected) FinancePrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                                                 fontSize = 10.sp
                                             )
                                         )
@@ -602,7 +606,7 @@ fun AnalyticsScreen(
                                         Text(
                                             text = item.categoryName,
                                             style = MaterialTheme.typography.labelSmall.copy(
-                                                color = if (isSelected) FinancePrimary else Color(0xFF334155),
+                                                color = if (isSelected) FinancePrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                                 fontSize = 10.sp,
                                                 textAlign = TextAlign.Center
@@ -622,7 +626,7 @@ fun AnalyticsScreen(
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Surface(
                                     shape = RoundedCornerShape(14.dp),
-                                    color = Color(0xFFF8FAFC),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Column(modifier = Modifier.padding(14.dp)) {
@@ -635,7 +639,7 @@ fun AnalyticsScreen(
                                                 text = Localization.t("analytics_subcategories_of", lang, selectedCat.icon, selectedCat.categoryName),
                                                 style = MaterialTheme.typography.titleSmall.copy(
                                                     fontWeight = FontWeight.Bold,
-                                                    color = Color(0xFF0F172A)
+                                                    color = MaterialTheme.colorScheme.onSurface
                                                 )
                                             )
                                             Text(
@@ -652,7 +656,7 @@ fun AnalyticsScreen(
                                         if (selectedCat.subcategories.isEmpty()) {
                                             Text(
                                                 text = Localization.t("analytics_no_subcategories", lang),
-                                                style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF64748B))
+                                                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                                             )
                                         } else {
                                             // Mini barras verticales anidadas para las subcategorías
@@ -696,7 +700,7 @@ fun AnalyticsScreen(
                                                             style = MaterialTheme.typography.labelSmall.copy(
                                                                 fontSize = 9.sp,
                                                                 textAlign = TextAlign.Center,
-                                                                color = Color(0xFF334155)
+                                                                color = MaterialTheme.colorScheme.onSurfaceVariant
                                                             ),
                                                             maxLines = 2,
                                                             overflow = TextOverflow.Ellipsis
@@ -722,7 +726,7 @@ fun AnalyticsScreen(
                 item {
                     Text(
                         text = Localization.t("analytics_no_expense_data", lang),
-                        style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF6B7280))
+                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                     )
                 }
             } else {
@@ -731,7 +735,8 @@ fun AnalyticsScreen(
 
                     Card(
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -751,12 +756,12 @@ fun AnalyticsScreen(
                                             text = item.categoryName,
                                             style = MaterialTheme.typography.bodyMedium.copy(
                                                 fontWeight = FontWeight.Bold,
-                                                color = Color(0xFF0F172A)
+                                                color = MaterialTheme.colorScheme.onSurface
                                             )
                                         )
                                         Text(
                                             text = item.group,
-                                            style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF64748B), fontSize = 11.sp)
+                                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
                                         )
                                     }
                                 }
@@ -772,14 +777,14 @@ fun AnalyticsScreen(
                                         )
                                         Text(
                                             text = "${String.format(Locale.US, "%.1f", item.percentageOfTotal)}%",
-                                            style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF64748B))
+                                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                                         )
                                     }
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Icon(
                                         imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                                         contentDescription = null,
-                                        tint = Color(0xFF94A3B8),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.size(20.dp)
                                     )
                                 }
@@ -790,20 +795,20 @@ fun AnalyticsScreen(
                             LinearProgressIndicator(
                                 progress = { (item.percentageOfTotal / 100).toFloat().coerceIn(0f, 1f) },
                                 color = FinancePrimary,
-                                trackColor = Color(0xFFE2E8F0),
+                                trackColor = MaterialTheme.colorScheme.surfaceVariant,
                                 strokeCap = StrokeCap.Round,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(6.dp)
                             )
 
-                            // Si está expandido y tiene subcategorías, muéstralas
+                            // Si está expandido y tiene subcategorías, muéstralas adaptadas al tema
                             if (isExpanded && item.subcategories.isNotEmpty()) {
                                 Spacer(modifier = Modifier.height(12.dp))
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .background(Color(0xFFF8FAFC), shape = RoundedCornerShape(10.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), shape = RoundedCornerShape(10.dp))
                                         .padding(10.dp),
                                     verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
@@ -811,7 +816,7 @@ fun AnalyticsScreen(
                                         text = Localization.t("analytics_subcategories_label", lang),
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF475569)
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     )
                                     item.subcategories.forEach { sub ->
@@ -822,7 +827,7 @@ fun AnalyticsScreen(
                                         ) {
                                             Text(
                                                 text = "${sub.icon} ${sub.name}",
-                                                style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF1E293B))
+                                                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurface)
                                             )
                                             Text(
                                                 text = "${formatCordobas(sub.amount)} (${String.format(Locale.US, "%.0f", sub.percentageOfCategory)}%)",
