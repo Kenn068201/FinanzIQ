@@ -86,6 +86,8 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
+import com.example.ui.components.DeleteConfirmationDialog
+
 /**
  * Interfaz de Recordatorios de Pagos y Facturas.
  * Permite programar alertas con descripción, monto y fecha límite de pago superior a la actual.
@@ -105,6 +107,7 @@ fun BillsScreen(
 
     var showAddDialog by remember { mutableStateOf(false) }
     var billToPay by remember { mutableStateOf<BillReminderEntity?>(null) }
+    var billToDelete by remember { mutableStateOf<BillReminderEntity?>(null) }
     var immediateAlertBill by remember { mutableStateOf<BillReminderEntity?>(null) }
 
     val pendingBills = bills.filter { !it.isPaid }
@@ -316,7 +319,7 @@ fun BillsScreen(
                                 // Al marcar la factura como pagada, se abre el formulario
                                 billToPay = bill
                             },
-                            onDelete = { viewModel.deleteBillReminder(bill) }
+                            onDelete = { billToDelete = bill }
                         )
                     }
                 }
@@ -340,7 +343,7 @@ fun BillsScreen(
                                 // Desmarcar como pagado
                                 viewModel.toggleBillPaid(bill)
                             },
-                            onDelete = { viewModel.deleteBillReminder(bill) }
+                            onDelete = { billToDelete = bill }
                         )
                     }
                 }
@@ -425,6 +428,23 @@ fun BillsScreen(
                 },
                 shape = RoundedCornerShape(18.dp),
                 containerColor = MaterialTheme.colorScheme.surface
+            )
+        }
+
+        // Diálogo de Confirmación para Eliminar Recordatorio de Factura
+        billToDelete?.let { bill ->
+            DeleteConfirmationDialog(
+                title = if (lang == AppLanguage.SPANISH) "Eliminar Recordatorio de Pago" else "Delete Bill Reminder",
+                message = if (lang == AppLanguage.SPANISH)
+                    "¿Estás seguro de eliminar el recordatorio '${bill.title}' (${formatCordobas(bill.amount)})? Esta acción afectará el control de tus compromisos de pago. ¿Deseas confirmar la eliminación?"
+                else
+                    "Are you sure you want to delete reminder '${bill.title}' (${formatCordobas(bill.amount)})? This action will affect your payment tracking. Do you wish to confirm?",
+                lang = lang,
+                onConfirm = {
+                    viewModel.deleteBillReminder(bill)
+                    billToDelete = null
+                },
+                onDismiss = { billToDelete = null }
             )
         }
     }
@@ -733,8 +753,8 @@ fun PayBillDialog(
 
     var errorMsg by remember { mutableStateOf<String?>(null) }
 
-    // Descripción automática obligatoria solicitada por el usuario
-    val automaticDescription = "Pago de Factura"
+    // Descripción automática obligatoria solicitada por el usuario (traducida al idioma activo)
+    val automaticDescription = if (lang == AppLanguage.SPANISH) "Pago de Factura" else "Bill Payment"
 
     AlertDialog(
         onDismissRequest = onDismiss,

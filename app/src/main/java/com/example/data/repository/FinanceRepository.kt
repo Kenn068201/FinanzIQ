@@ -174,6 +174,9 @@ class FinanceRepository(private val db: AppDatabase) {
     suspend fun deleteTransaction(id: Long) =
         transactionDao.deleteById(id)
 
+    suspend fun getTransactionById(id: Long): TransactionEntity? =
+        transactionDao.getTransactionById(id)
+
     // Herramienta de clasificación automática basada en el título o las palabras clave
     fun autoClassifyCategory(title: String, type: String): String {
         val lower = title.lowercase(Locale.ROOT)

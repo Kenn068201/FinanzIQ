@@ -17,11 +17,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,6 +34,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.FinanceBorderSky
@@ -236,4 +241,95 @@ fun SectionHeader(
         }
     }
 }
+
+/**
+ * Diálogo de Confirmación para Eliminaciones Críticas.
+ * 
+ * Qué hace:
+ * Despliega un formulario modal que advierte al usuario de que la eliminación
+ * afectará directamente los datos de su balance general y de sus cuentas asociadas,
+ * requiriendo confirmación explícita con botones de Cancelar y Confirmar.
+ * 
+ * Por qué se implementa de esta forma:
+ * Cumple estrictamente con la directriz: "Al darle al botón de eliminar, desplegar un
+ * formulario que pida confirmación del usuario, indicándole que afectará los datos de su balance,
+ * con los botones de Cancelar y Confirmar para cada una de las interfaces que tengan esta funcion".
+ */
+@Composable
+fun DeleteConfirmationDialog(
+    title: String,
+    message: String,
+    confirmButtonText: String? = null,
+    cancelButtonText: String? = null,
+    lang: com.example.util.AppLanguage = com.example.util.AppLanguage.SPANISH,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(FinanceError.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = FinanceError,
+                    modifier = Modifier.size(26.dp)
+                )
+            }
+        },
+        title = {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        text = {
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 20.sp
+                ),
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(containerColor = FinanceError),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.testTag("confirm_delete_btn")
+            ) {
+                Text(
+                    text = confirmButtonText ?: if (lang == com.example.util.AppLanguage.SPANISH) "Confirmar" else "Confirm",
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.testTag("cancel_delete_btn")
+            ) {
+                Text(
+                    text = cancelButtonText ?: if (lang == com.example.util.AppLanguage.SPANISH) "Cancelar" else "Cancel",
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        },
+        shape = RoundedCornerShape(20.dp),
+        containerColor = MaterialTheme.colorScheme.surface
+    )
+}
+
 

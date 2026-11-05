@@ -7,9 +7,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -286,7 +288,8 @@ fun AuthenticatedAppScaffold(
         bottomBar = {
             NavigationBar(
                 containerColor = MaterialTheme.colorScheme.surface,
-                tonalElevation = 2.dp
+                tonalElevation = 2.dp,
+                modifier = Modifier.height(56.dp)
             ) {
                 navItems.forEach { screen ->
                     val isSelected = currentRoute == screen.route
@@ -319,15 +322,21 @@ fun AuthenticatedAppScaffold(
                         icon = {
                             Icon(
                                 imageVector = screen.icon,
-                                contentDescription = title
+                                contentDescription = title,
+                                modifier = Modifier.size(20.dp)
                             )
                         },
                         label = {
                             Text(
                                 text = title,
                                 style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 9.sp,
+                                    lineHeight = 11.sp,
+                                    letterSpacing = (-0.3).sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                )
+                                ),
+                                maxLines = 1,
+                                softWrap = false
                             )
                         },
                         colors = NavigationBarItemDefaults.colors(

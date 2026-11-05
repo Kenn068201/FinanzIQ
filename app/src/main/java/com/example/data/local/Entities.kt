@@ -40,7 +40,8 @@ data class TransactionEntity(
     val destination: String = "", // wallet, bank, broker
     val dateMillis: Long,
     val note: String = "",
-    val isRecurring: Boolean = false
+    val isRecurring: Boolean = false,
+    val accountId: Long? = null // Cuenta o billetera asociada para reflejar balance exacto
 )
 
 @Entity(tableName = "budgets")
@@ -62,7 +63,8 @@ data class SavingsGoalEntity(
     val targetAmount: Double,
     val currentAmount: Double,
     val targetDateMillis: Long,
-    val iconName: String = "savings"
+    val iconName: String = "savings",
+    val isReached: Boolean = false // Indica si la meta de ahorro ha sido completada
 )
 
 @Entity(tableName = "bill_reminders")

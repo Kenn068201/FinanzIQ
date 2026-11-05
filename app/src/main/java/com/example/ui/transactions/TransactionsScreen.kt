@@ -84,10 +84,12 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.local.TransactionEntity
-import com.example.ui.FinanceViewModel
+import com.example.ui.components.DeleteConfirmationDialog
 import com.example.ui.components.ErrorWarningBox
 import com.example.ui.components.formatCordobas
 import com.example.ui.components.formatCurrency
+import com.example.ui.FinanceViewModel
+import com.example.util.CurrencyConversionUtil
 import com.example.ui.theme.FinanceBackground
 import com.example.ui.theme.FinanceError
 import com.example.ui.theme.FinanceOnPrimary
@@ -129,6 +131,7 @@ fun TransactionsScreen(
     var dialogInitialType by remember { mutableStateOf("EXPENSE") }
     var showExportDialog by remember { mutableStateOf(false) }
     var showTransferDialog by remember { mutableStateOf(false) }
+    var txToDelete by remember { mutableStateOf<TransactionEntity?>(null) }
 
     Scaffold(
         topBar = {
@@ -217,21 +220,30 @@ fun TransactionsScreen(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Period Filter Chips (Semana, Mes, Año, Todos)
-            Row(
+            // Period Filter Chips (Semana, Mes, Año, Todos) en LazyRow deslizable
+            // Se transforma en LazyRow para permitir desplazamiento horizontal y evitar que los chips se encojan verticalmente
+            LazyRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                listOf(
+                val periods = listOf(
                     "Semana" to Localization.t("filter_week", lang),
                     "Mes" to Localization.t("filter_month", lang),
                     "Año" to Localization.t("filter_year", lang),
                     "Todos" to Localization.t("filter_all", lang)
-                ).forEach { (periodKey, label) ->
+                )
+                items(periods) { (periodKey, label) ->
                     FilterChip(
                         selected = selectedPeriod == periodKey,
                         onClick = { viewModel.setPeriodFilter(periodKey) },
-                        label = { Text(label) },
+                        label = {
+                            Text(
+                                text = label,
+                                maxLines = 1,
+                                softWrap = false,
+                                letterSpacing = (-0.2).sp
+                            )
+                        },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = FinanceSecondaryContainer,
                             selectedLabelColor = FinancePrimary
@@ -252,7 +264,14 @@ fun TransactionsScreen(
                     FilterChip(
                         selected = selectedCat == "Todas",
                         onClick = { viewModel.setCategoryFilter("Todas") },
-                        label = { Text(Localization.t("all_categories", lang)) },
+                        label = {
+                            Text(
+                                text = Localization.t("all_categories", lang),
+                                maxLines = 1,
+                                softWrap = false,
+                                letterSpacing = (-0.2).sp
+                            )
+                        },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = FinanceSecondaryContainer,
                             selectedLabelColor = FinancePrimary
@@ -269,7 +288,14 @@ fun TransactionsScreen(
                                 viewModel.setCategoryFilter(catName)
                             }
                         },
-                        label = { Text(catName) },
+                        label = {
+                            Text(
+                                text = CategoryDataHierarchy.getCategoryDisplayName(catName, lang),
+                                maxLines = 1,
+                                softWrap = false,
+                                letterSpacing = (-0.2).sp
+                            )
+                        },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = FinanceSecondaryContainer,
                             selectedLabelColor = FinancePrimary
@@ -280,20 +306,29 @@ fun TransactionsScreen(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            // Transaction Type Selector (TODOS, INCOME, EXPENSE)
-            Row(
+            // Transaction Type Selector (TODOS, INCOME, EXPENSE) en LazyRow deslizable
+            // Se transforma en LazyRow para evitar que etiquetas como "Solo Gastos" se quiebren en dos renglones
+            LazyRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                listOf(
+                val typeOptions = listOf(
                     "TODOS" to Localization.t("all_types", lang),
                     "INCOME" to Localization.t("incomes_label", lang),
                     "EXPENSE" to Localization.t("expenses_label", lang)
-                ).forEach { (key, label) ->
+                )
+                items(typeOptions) { (key, label) ->
                     FilterChip(
                         selected = selectedType == key,
                         onClick = { viewModel.setTypeFilter(key) },
-                        label = { Text(label) },
+                        label = {
+                            Text(
+                                text = label,
+                                maxLines = 1,
+                                softWrap = false,
+                                letterSpacing = (-0.2).sp
+                            )
+                        },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = if (key == "INCOME") FinanceSuccessContainer else if (key == "EXPENSE") Color(0xFFFEE2E2) else FinanceSecondaryContainer,
                             selectedLabelColor = if (key == "INCOME") FinanceSuccess else if (key == "EXPENSE") FinanceError else FinancePrimary
@@ -339,15 +374,34 @@ fun TransactionsScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(filteredList) { tx ->
+                        // Detalle de movimiento con soporte de idioma activo para traducción dinámica
                         TransactionCardDetail(
                             tx = tx,
                             currencySymbol = currency.symbol,
-                            onDelete = { viewModel.deleteTransaction(tx.id) }
+                            lang = lang,
+                            onDelete = { txToDelete = tx }
                         )
                     }
                     item { Spacer(modifier = Modifier.height(72.dp)) }
                 }
             }
+        }
+
+        // Diálogo de Confirmación de Eliminación que advierte sobre el impacto en el balance general y cuentas
+        txToDelete?.let { tx ->
+            DeleteConfirmationDialog(
+                title = if (lang == AppLanguage.SPANISH) "Eliminar Movimiento" else "Delete Transaction",
+                message = if (lang == AppLanguage.SPANISH)
+                    "Esta acción eliminará el movimiento '${tx.title}' y afectará los datos de tu balance general y de tus cuentas asociadas. ¿Deseas confirmar la eliminación?"
+                else
+                    "This action will delete transaction '${tx.title}' and affect your general balance and linked account balances. Do you wish to confirm?",
+                lang = lang,
+                onConfirm = {
+                    viewModel.deleteTransaction(tx.id)
+                    txToDelete = null
+                },
+                onDismiss = { txToDelete = null }
+            )
         }
 
         // Add Transaction Dialog
@@ -404,6 +458,7 @@ fun TransactionsScreen(
 fun TransactionCardDetail(
     tx: TransactionEntity,
     currencySymbol: String = "C$",
+    lang: AppLanguage = AppLanguage.SPANISH,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -454,10 +509,15 @@ fun TransactionCardDetail(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                         )
+                        // Traducción dinámica de categoría y subcategoría según el idioma activo (español / inglés)
+                        val categoryName = CategoryDataHierarchy.getCategoryDisplayName(tx.category, lang)
+                        val subCategoryName = if (tx.subCategory.isNotBlank()) {
+                            CategoryDataHierarchy.getCategoryDisplayName(tx.subCategory, lang)
+                        } else ""
                         val subtitle = buildString {
-                            append(tx.category)
-                            if (tx.subCategory.isNotBlank()) {
-                                append(" • ${tx.subCategory}")
+                            append(categoryName)
+                            if (subCategoryName.isNotBlank()) {
+                                append(" • $subCategoryName")
                             }
                             append(" • $dateStr")
                         }
@@ -591,6 +651,12 @@ fun AddTransactionDialog(
     var note by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
+    // Estados para validación de topes de montos en dólares (USD)
+    var showHighAmountWarning by remember { mutableStateOf(false) }
+    var showExtremeAmountConfirmation by remember { mutableStateOf(false) }
+    var extremeConfirmationText by remember { mutableStateOf("") }
+    var pendingConfirmedAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+
     // Active linked accounts
     val activeAccounts = remember(accounts) { accounts.filter { it.isActive } }
     var selectedAccountId by remember(activeAccounts) { mutableStateOf(activeAccounts.firstOrNull()?.id) }
@@ -716,16 +782,25 @@ fun AddTransactionDialog(
                             text = "Categoría de Ingreso Pasivo:",
                             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                         )
-                        Row(
+                        // Categorías de Ingreso Pasivo en LazyRow deslizable
+                        // Se reemplaza la fila fija por LazyRow para que no se compriman las opciones con emojis en diálogos estrechos
+                        LazyRow(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            passiveCategories.forEachIndexed { index, cat ->
+                            items(passiveCategories.size) { index ->
+                                val cat = passiveCategories[index]
                                 FilterChip(
                                     selected = selectedPassiveIndex == index,
                                     onClick = { selectedPassiveIndex = index },
-                                    label = { Text("${cat.iconEmoji} ${if (lang == AppLanguage.ENGLISH) cat.titleEn else cat.titleEs}") },
-                                    modifier = Modifier.weight(1f)
+                                    label = {
+                                        Text(
+                                            text = "${cat.iconEmoji} ${if (lang == AppLanguage.ENGLISH) cat.titleEn else cat.titleEs}",
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            letterSpacing = (-0.2).sp
+                                        )
+                                    }
                                 )
                             }
                         }
@@ -840,40 +915,66 @@ fun AddTransactionDialog(
                         text = "Grupo de Gastos:",
                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     )
-                    Row(
+                    // Grupo de Gastos en LazyRow deslizable horizontal.
+                    // Evita que los botones de grupos se estiren verticalmente o rompan su texto en múltiples renglones.
+                    LazyRow(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        FilterChip(
-                            selected = selectedGroupType == CategoryGroupType.FIXED_EXPENSE,
-                            onClick = {
-                                selectedGroupType = CategoryGroupType.FIXED_EXPENSE
-                                selectedCategoryIndex = 0
-                                selectedSubcategoryIndex = 0
-                            },
-                            label = { Text("🔒 ${Localization.t("group_fixed_expenses", lang)}") },
-                            modifier = Modifier.weight(1f)
-                        )
-                        FilterChip(
-                            selected = selectedGroupType == CategoryGroupType.VARIABLE_EXPENSE,
-                            onClick = {
-                                selectedGroupType = CategoryGroupType.VARIABLE_EXPENSE
-                                selectedCategoryIndex = 0
-                                selectedSubcategoryIndex = 0
-                            },
-                            label = { Text("🎯 ${Localization.t("group_variable_expenses", lang)}") },
-                            modifier = Modifier.weight(1f)
-                        )
-                        FilterChip(
-                            selected = selectedGroupType == CategoryGroupType.DEBT_PAYMENT,
-                            onClick = {
-                                selectedGroupType = CategoryGroupType.DEBT_PAYMENT
-                                selectedCategoryIndex = 0
-                                selectedSubcategoryIndex = 0
-                            },
-                            label = { Text("💳 ${Localization.t("group_debt_payments", lang)}") },
-                            modifier = Modifier.weight(1f)
-                        )
+                        item {
+                            FilterChip(
+                                selected = selectedGroupType == CategoryGroupType.FIXED_EXPENSE,
+                                onClick = {
+                                    selectedGroupType = CategoryGroupType.FIXED_EXPENSE
+                                    selectedCategoryIndex = 0
+                                    selectedSubcategoryIndex = 0
+                                },
+                                label = {
+                                    Text(
+                                        text = "🔒 ${Localization.t("group_fixed_expenses", lang)}",
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        letterSpacing = (-0.2).sp
+                                    )
+                                }
+                            )
+                        }
+                        item {
+                            FilterChip(
+                                selected = selectedGroupType == CategoryGroupType.VARIABLE_EXPENSE,
+                                onClick = {
+                                    selectedGroupType = CategoryGroupType.VARIABLE_EXPENSE
+                                    selectedCategoryIndex = 0
+                                    selectedSubcategoryIndex = 0
+                                },
+                                label = {
+                                    Text(
+                                        text = "🎯 ${Localization.t("group_variable_expenses", lang)}",
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        letterSpacing = (-0.2).sp
+                                    )
+                                }
+                            )
+                        }
+                        item {
+                            FilterChip(
+                                selected = selectedGroupType == CategoryGroupType.DEBT_PAYMENT,
+                                onClick = {
+                                    selectedGroupType = CategoryGroupType.DEBT_PAYMENT
+                                    selectedCategoryIndex = 0
+                                    selectedSubcategoryIndex = 0
+                                },
+                                label = {
+                                    Text(
+                                        text = "💳 ${Localization.t("group_debt_payments", lang)}",
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        letterSpacing = (-0.2).sp
+                                    )
+                                }
+                            )
+                        }
                     }
 
                     // Category within group
@@ -1074,21 +1175,38 @@ fun AddTransactionDialog(
                         finalPayoutDate = ""
                     }
 
-                    onConfirmMovement(
-                        trimmedTitle,
-                        amount,
-                        type,
-                        if (type == "INCOME") incomeSubType else "ACTIVE",
-                        finalFrequency,
-                        finalPayoutDate,
-                        finalDestination,
-                        finalGroup,
-                        finalCategory,
-                        finalSubCategory,
-                        System.currentTimeMillis(),
-                        note,
-                        selectedAcc?.id
-                    )
+                    val saveAction = {
+                        onConfirmMovement(
+                            trimmedTitle,
+                            amount,
+                            type,
+                            if (type == "INCOME") incomeSubType else "ACTIVE",
+                            finalFrequency,
+                            finalPayoutDate,
+                            finalDestination,
+                            finalGroup,
+                            finalCategory,
+                            finalSubCategory,
+                            System.currentTimeMillis(),
+                            note,
+                            selectedAcc?.id
+                        )
+                    }
+
+                    // Validación de Topes de Montos en Dólares (USD):
+                    // 1. Menor a $10,000 USD: Se registra con total normalidad.
+                    // 2. Entre $10,000 USD y $1,000,000 USD: Despliega aviso intermedio de advertencia.
+                    // 3. Mayor a $1,000,000 USD: Bloquea guardado automático y exige escribir 'ACEPTAR'.
+                    val amountInUsd = CurrencyConversionUtil.convertToUsd(amount)
+                    if (amountInUsd > 1_000_000.0) {
+                        pendingConfirmedAction = saveAction
+                        showExtremeAmountConfirmation = true
+                    } else if (amountInUsd >= 10_000.0) {
+                        pendingConfirmedAction = saveAction
+                        showHighAmountWarning = true
+                    } else {
+                        saveAction()
+                    }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = FinancePrimary),
                 modifier = Modifier.testTag("add_tx_confirm_button")
@@ -1104,5 +1222,114 @@ fun AddTransactionDialog(
         shape = RoundedCornerShape(18.dp),
         containerColor = MaterialTheme.colorScheme.surface
     )
+
+    // Aviso Intermedio para montos entre $10,000 y $1,000,000 USD
+    if (showHighAmountWarning) {
+        AlertDialog(
+            onDismissRequest = { showHighAmountWarning = false },
+            title = {
+                Text(
+                    text = if (lang == AppLanguage.SPANISH) "Aviso de Monto Alto" else "High Amount Notice",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = if (lang == AppLanguage.SPANISH)
+                        "Estás registrando un monto inusualmente alto. ¿Deseas continuar?"
+                    else
+                        "You are registering an unusually high amount. Do you wish to continue?"
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showHighAmountWarning = false
+                        pendingConfirmedAction?.invoke()
+                        pendingConfirmedAction = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = FinancePrimary),
+                    modifier = Modifier.testTag("confirm_high_amount_button")
+                ) {
+                    Text(if (lang == AppLanguage.SPANISH) "Continuar" else "Continue", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showHighAmountWarning = false
+                        pendingConfirmedAction = null
+                    }
+                ) {
+                    Text(if (lang == AppLanguage.SPANISH) "Cancelar" else "Cancel")
+                }
+            },
+            shape = RoundedCornerShape(16.dp)
+        )
+    }
+
+    // Bloqueo y Confirmación Explícita escribiendo 'ACEPTAR' para montos superiores a $1,000,000 USD
+    if (showExtremeAmountConfirmation) {
+        AlertDialog(
+            onDismissRequest = {
+                showExtremeAmountConfirmation = false
+                extremeConfirmationText = ""
+                pendingConfirmedAction = null
+            },
+            title = {
+                Text(
+                    text = if (lang == AppLanguage.SPANISH) "Confirmación de Monto Excepcional" else "Exceptional Amount Confirmation",
+                    fontWeight = FontWeight.Bold,
+                    color = FinanceError
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = if (lang == AppLanguage.SPANISH)
+                            "El monto supera el límite de $1,000,000 USD. Por seguridad financiera, el guardado automático está bloqueado. Para autorizar este movimiento extraordinario, escribe exactamente la palabra 'ACEPTAR':"
+                        else
+                            "The amount exceeds the $1,000,000 USD limit. For security, automatic saving is locked. To authorize this movement, type exactly 'ACEPTAR':"
+                    )
+                    OutlinedTextField(
+                        value = extremeConfirmationText,
+                        onValueChange = { extremeConfirmationText = it },
+                        placeholder = { Text("ACEPTAR") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().testTag("extreme_amount_accept_input")
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (extremeConfirmationText.trim().equals("ACEPTAR", ignoreCase = true)) {
+                            showExtremeAmountConfirmation = false
+                            extremeConfirmationText = ""
+                            pendingConfirmedAction?.invoke()
+                            pendingConfirmedAction = null
+                        }
+                    },
+                    enabled = extremeConfirmationText.trim().equals("ACEPTAR", ignoreCase = true),
+                    colors = ButtonDefaults.buttonColors(containerColor = FinanceError),
+                    modifier = Modifier.testTag("confirm_extreme_amount_button")
+                ) {
+                    Text(if (lang == AppLanguage.SPANISH) "Confirmar Registro" else "Confirm Registration", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showExtremeAmountConfirmation = false
+                        extremeConfirmationText = ""
+                        pendingConfirmedAction = null
+                    }
+                ) {
+                    Text(if (lang == AppLanguage.SPANISH) "Cancelar" else "Cancel")
+                }
+            },
+            shape = RoundedCornerShape(16.dp)
+        )
+    }
 }
 

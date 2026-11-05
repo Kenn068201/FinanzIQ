@@ -97,6 +97,7 @@ import com.example.ui.theme.FinanceSuccess
 import com.example.ui.theme.FinanceSuccessContainer
 import com.example.util.AppLanguage
 import com.example.util.Localization
+import com.example.ui.components.DeleteConfirmationDialog
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -132,6 +133,8 @@ fun SavingsScreen(
     var simulatorTab by rememberSaveable { mutableIntStateOf(0) } // 0: Mensual, 1: Diario
     var showAddGoalDialog by remember { mutableStateOf(false) }
     var depositGoalTarget by remember { mutableStateOf<SavingsGoalEntity?>(null) }
+    var goalToDelete by remember { mutableStateOf<SavingsGoalEntity?>(null) }
+    var congratulationsGoal by remember { mutableStateOf<SavingsGoalEntity?>(null) }
 
     // Estado reactivo y persistente del simulador de ahorro diario
     var dailyAmountInput by rememberSaveable { mutableStateOf(if (simDailyAmount % 1.0 == 0.0) simDailyAmount.toInt().toString() else simDailyAmount.toString()) }
@@ -296,16 +299,27 @@ fun SavingsScreen(
                                 )
                             )
 
-                            // Chips de montos sugeridos
-                            Row(
+                            // Fila deslizable horizontal (LazyRow) para botones de montos mensuales sugeridos.
+                            // Se implementa como LazyRow para evitar que los botones se compriman o deformen verticalmente en pantallas estrechas.
+                            // Con maxLines = 1, softWrap = false y letterSpacing compacto, las opciones permanecen alineadas en una sola fila continua.
+                            LazyRow(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                listOf(200.0, 500.0, 1000.0, 2500.0, 5000.0).forEach { amount ->
+                                val monthlyAmounts = listOf(200.0, 500.0, 1000.0, 2500.0, 5000.0)
+                                items(monthlyAmounts) { amount ->
                                     FilterChip(
                                         selected = simMonthly == amount,
                                         onClick = { viewModel.updateSimulator(amount, simMonths) },
-                                        label = { Text("${currency.symbol} ${amount.toInt()}", fontSize = 11.sp) },
+                                        label = {
+                                            Text(
+                                                text = "${currency.symbol} ${amount.toInt()}",
+                                                fontSize = 11.sp,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                letterSpacing = (-0.2).sp
+                                            )
+                                        },
                                         colors = FilterChipDefaults.filterChipColors(
                                             selectedContainerColor = FinanceSecondaryContainer,
                                             selectedLabelColor = FinancePrimary
@@ -325,22 +339,33 @@ fun SavingsScreen(
                                 )
                             )
 
-                            Row(
+                            // Fila deslizable horizontal (LazyRow) para los plazos de tiempo mensual.
+                            // Permite desplazamiento horizontal fluido y evita que los botones se apilen o estiren la interfaz.
+                            LazyRow(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(top = 4.dp)
                             ) {
-                                listOf(
+                                val timePeriods = listOf(
                                     6 to Localization.t("sim_6_months", lang),
                                     12 to Localization.t("sim_1_year", lang),
                                     24 to Localization.t("sim_2_years", lang),
                                     36 to Localization.t("sim_3_years", lang)
-                                ).forEach { (months, label) ->
+                                )
+                                items(timePeriods) { (months, label) ->
                                     FilterChip(
                                         selected = simMonths == months,
                                         onClick = { viewModel.updateSimulator(simMonthly, months) },
-                                        label = { Text(label, fontSize = 12.sp) },
+                                        label = {
+                                            Text(
+                                                text = label,
+                                                fontSize = 12.sp,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                letterSpacing = (-0.2).sp
+                                            )
+                                        },
                                         colors = FilterChipDefaults.filterChipColors(
                                             selectedContainerColor = FinanceSecondaryContainer,
                                             selectedLabelColor = FinancePrimary
@@ -404,7 +429,7 @@ fun SavingsScreen(
 
                             // 1. Campo de Cantidad Ingresada a Ahorrar por Día
                             Text(
-                                text = "Cantidad a Ahorrar por Día:",
+                                text = if (lang == AppLanguage.SPANISH) "Cantidad a Ahorrar por Día:" else "Daily Savings Amount:",
                                 style = MaterialTheme.typography.labelMedium.copy(
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface
@@ -448,12 +473,14 @@ fun SavingsScreen(
                                 )
                             )
 
-                            // Chips de Montos Diarios Sugeridos
-                            Row(
+                            // Fila deslizable horizontal (LazyRow) para botones de montos diarios sugeridos.
+                            // Corrige el error donde el botón C$ 200 se estiraba verticalmente letra por letra en lugar de desplazarse.
+                            LazyRow(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                listOf(10.0, 20.0, 50.0, 100.0, 200.0, 500.0).forEach { amt ->
+                                val dailyAmounts = listOf(10.0, 20.0, 50.0, 100.0, 200.0, 500.0)
+                                items(dailyAmounts) { amt ->
                                     val isSelected = (currentDailyAmount == amt)
                                     FilterChip(
                                         selected = isSelected,
@@ -462,7 +489,15 @@ fun SavingsScreen(
                                             val days = dailyDaysInput.toIntOrNull() ?: simDailyDays
                                             viewModel.updateDailySimulatorByLapse(amt, days.coerceAtLeast(1))
                                         },
-                                        label = { Text("${currency.symbol} ${amt.toInt()}", fontSize = 11.sp) },
+                                        label = {
+                                            Text(
+                                                text = "${currency.symbol} ${amt.toInt()}",
+                                                fontSize = 11.sp,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                letterSpacing = (-0.2).sp
+                                            )
+                                        },
                                         colors = FilterChipDefaults.filterChipColors(
                                             selectedContainerColor = FinanceSecondaryContainer,
                                             selectedLabelColor = FinancePrimary
@@ -475,7 +510,7 @@ fun SavingsScreen(
 
                             // 2. Lapso de Tiempo para el Ahorro
                             Text(
-                                text = "Lapso de Tiempo de la Simulación:",
+                                text = if (lang == AppLanguage.SPANISH) "Lapso de Tiempo de la Simulación:" else "Simulation Timeframe:",
                                 style = MaterialTheme.typography.labelMedium.copy(
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface
@@ -491,7 +526,7 @@ fun SavingsScreen(
                                     val amt = dailyAmountInput.toDoubleOrNull() ?: simDailyAmount
                                     viewModel.updateDailySimulatorByLapse(amt, days.coerceAtLeast(1))
                                 },
-                                label = { Text("Lapso de Tiempo en Días") },
+                                label = { Text(if (lang == AppLanguage.SPANISH) "Lapso de Tiempo en Días" else "Timeframe in Days") },
                                 placeholder = { Text("ej. 30") },
                                 leadingIcon = {
                                     Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = FinancePrimary)
@@ -522,16 +557,20 @@ fun SavingsScreen(
                                 )
                             )
 
-                            // Chips de Lapsos de Tiempo Sugeridos
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            // Fila deslizable horizontal (LazyRow) para Chips de Lapsos de Tiempo Sugeridos.
+                            // Garantiza que los chips se mantengan en una sola línea horizontal deslizable con espaciado óptimo.
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
                                 val lapseOptions = listOf(
-                                    7 to "7 días (1 sem)",
-                                    15 to "15 días (quincena)",
-                                    30 to "30 días (1 mes)",
-                                    60 to "60 días (2 meses)",
-                                    90 to "90 días (trimestre)",
-                                    180 to "180 días (semestre)",
-                                    365 to "365 días (1 año)"
+                                    7 to if (lang == AppLanguage.SPANISH) "7 días (1 sem)" else "7 days (1 wk)",
+                                    15 to if (lang == AppLanguage.SPANISH) "15 días (quincena)" else "15 days (bi-weekly)",
+                                    30 to if (lang == AppLanguage.SPANISH) "30 días (1 mes)" else "30 days (1 mo)",
+                                    60 to if (lang == AppLanguage.SPANISH) "60 días (2 meses)" else "60 days (2 mos)",
+                                    90 to if (lang == AppLanguage.SPANISH) "90 días (trimestre)" else "90 days (quarter)",
+                                    180 to if (lang == AppLanguage.SPANISH) "180 días (semestre)" else "180 days (semester)",
+                                    365 to if (lang == AppLanguage.SPANISH) "365 días (1 año)" else "365 days (1 yr)"
                                 )
                                 items(lapseOptions) { (days, label) ->
                                     val isSelected = (currentDailyDays == days)
@@ -542,7 +581,15 @@ fun SavingsScreen(
                                             val amt = dailyAmountInput.toDoubleOrNull() ?: simDailyAmount
                                             viewModel.updateDailySimulatorByLapse(amt, days)
                                         },
-                                        label = { Text(label, fontSize = 11.sp) },
+                                        label = {
+                                            Text(
+                                                text = label,
+                                                fontSize = 11.sp,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                letterSpacing = (-0.2).sp
+                                            )
+                                        },
                                         colors = FilterChipDefaults.filterChipColors(
                                             selectedContainerColor = FinanceSecondaryContainer,
                                             selectedLabelColor = FinancePrimary
@@ -723,14 +770,54 @@ fun SavingsScreen(
                     }
                 }
             } else {
-                items(goals, key = { it.id }) { goal ->
-                    SavingsGoalProgressCard(
-                        goal = goal,
-                        currencySymbol = currency.symbol,
-                        lang = lang,
-                        onDeposit = { depositGoalTarget = goal },
-                        onDelete = { viewModel.deleteSavingsGoal(goal) }
-                    )
+                val inProgressGoals = goals.filter { it.currentAmount < it.targetAmount }
+                val reachedGoals = goals.filter { it.currentAmount >= it.targetAmount }
+
+                // Sección 1: Metas En Progreso
+                if (inProgressGoals.isNotEmpty()) {
+                    item {
+                        Text(
+                            text = if (lang == AppLanguage.SPANISH) "En progreso (${inProgressGoals.size})" else "In Progress (${inProgressGoals.size})",
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = FinancePrimary
+                            ),
+                            modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)
+                        )
+                    }
+                    items(inProgressGoals, key = { it.id }) { goal ->
+                        SavingsGoalProgressCard(
+                            goal = goal,
+                            currencySymbol = currency.symbol,
+                            lang = lang,
+                            onDeposit = { depositGoalTarget = goal },
+                            onDelete = { goalToDelete = goal }
+                        )
+                    }
+                }
+
+                // Sección 2: Metas Alcanzadas (100% completadas)
+                if (reachedGoals.isNotEmpty()) {
+                    item {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = if (lang == AppLanguage.SPANISH) "🏆 Alcanzadas (${reachedGoals.size})" else "🏆 Reached (${reachedGoals.size})",
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = FinanceSuccess
+                            ),
+                            modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)
+                        )
+                    }
+                    items(reachedGoals, key = { it.id }) { goal ->
+                        SavingsGoalProgressCard(
+                            goal = goal,
+                            currencySymbol = currency.symbol,
+                            lang = lang,
+                            onDeposit = { depositGoalTarget = goal },
+                            onDelete = { goalToDelete = goal }
+                        )
+                    }
                 }
             }
 
@@ -761,9 +848,68 @@ fun SavingsScreen(
                 lang = lang,
                 currencySymbol = currency.symbol,
                 onDismiss = { depositGoalTarget = null },
-                onSuccess = {
+                onSuccess = { depositedAmount ->
                     depositGoalTarget = null
+                    val newCurrent = goal.currentAmount + depositedAmount
+                    if (newCurrent >= goal.targetAmount) {
+                        congratulationsGoal = goal.copy(currentAmount = newCurrent)
+                    }
                 }
+            )
+        }
+
+        // Mensaje de Felicitaciones al alcanzar y cumplir una meta al 100%
+        congratulationsGoal?.let { goal ->
+            AlertDialog(
+                onDismissRequest = { congratulationsGoal = null },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = if (lang == AppLanguage.SPANISH) "🎉 ¡Meta Alcanzada con Éxito!" else "🎉 Goal Reached Successfully!",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = FinanceSuccess
+                            )
+                        )
+                    }
+                },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = if (lang == AppLanguage.SPANISH)
+                                "¡Felicitaciones! Has completado al 100% tu meta de ahorro '${goal.title}'. Tu constancia y disciplina financiera han dado frutos. Esta meta ha sido archivada en el apartado de 'Alcanzadas'."
+                            else
+                                "Congratulations! You have 100% completed your savings goal '${goal.title}'. Your commitment and financial discipline paid off! This goal is now saved in the 'Reached' section.",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = { congratulationsGoal = null },
+                        colors = ButtonDefaults.buttonColors(containerColor = FinanceSuccess)
+                    ) {
+                        Text(if (lang == AppLanguage.SPANISH) "¡Excelente!" else "Awesome!", fontWeight = FontWeight.Bold)
+                    }
+                },
+                shape = RoundedCornerShape(18.dp)
+            )
+        }
+
+        // Diálogo de Confirmación de Eliminación para Metas (tanto En Progreso como Alcanzadas)
+        goalToDelete?.let { goal ->
+            DeleteConfirmationDialog(
+                title = if (lang == AppLanguage.SPANISH) "Eliminar Meta de Ahorro" else "Delete Savings Goal",
+                message = if (lang == AppLanguage.SPANISH)
+                    "¿Estás seguro de eliminar la meta '${goal.title}'? Esta acción afectará los registros de tu plan de ahorros. ¿Deseas confirmar la eliminación?"
+                else
+                    "Are you sure you want to delete the savings goal '${goal.title}'? This action will affect your savings plan records. Do you wish to confirm?",
+                lang = lang,
+                onConfirm = {
+                    viewModel.deleteSavingsGoal(goal)
+                    goalToDelete = null
+                },
+                onDismiss = { goalToDelete = null }
             )
         }
     }
@@ -1022,7 +1168,7 @@ fun DepositToGoalWithAccountModal(
     lang: com.example.util.AppLanguage,
     currencySymbol: String,
     onDismiss: () -> Unit,
-    onSuccess: () -> Unit
+    onSuccess: (Double) -> Unit
 ) {
     val activeAccounts = remember(accounts) { accounts.filter { it.isActive } }
     var selectedAccount by remember { mutableStateOf<FinancialAccountEntity?>(activeAccounts.firstOrNull()) }
@@ -1208,7 +1354,7 @@ fun DepositToGoalWithAccountModal(
                                 amount = amount
                             ) { success, err ->
                                 if (success) {
-                                    onSuccess()
+                                    onSuccess(amount)
                                 } else {
                                     errorMsg = err
                                 }

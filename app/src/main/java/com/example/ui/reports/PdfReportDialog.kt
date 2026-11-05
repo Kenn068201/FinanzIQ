@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
@@ -160,66 +161,97 @@ fun ExportPdfReportDialog(
                     ErrorWarningBox(message = errorMessage!!)
                 }
 
-                // Chips de selección rápida de rango de fechas
-                Row(
+                // Chips de selección rápida de rango de fechas en fila horizontal deslizable (LazyRow)
+                // Permite desplazar horizontalmente y evita que los chips rompan su texto en diálogos de pantalla angosta
+                LazyRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    FilterChip(
-                        selected = false,
-                        onClick = {
-                            errorMessage = null
-                            val now = Calendar.getInstance()
-                            now.set(Calendar.DAY_OF_MONTH, 1)
-                            now.set(Calendar.HOUR_OF_DAY, 0)
-                            now.set(Calendar.MINUTE, 0)
-                            now.set(Calendar.SECOND, 0)
-                            startDateMillis = now.timeInMillis
-                            endDateMillis = System.currentTimeMillis()
-                        },
-                        label = { Text("Este Mes", fontSize = 11.sp) },
-                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = FinanceSecondaryContainer)
-                    )
-                    FilterChip(
-                        selected = false,
-                        onClick = {
-                            errorMessage = null
-                            val prevMonth = Calendar.getInstance().apply {
-                                add(Calendar.MONTH, -1)
-                                set(Calendar.DAY_OF_MONTH, 1)
-                                set(Calendar.HOUR_OF_DAY, 0)
-                                set(Calendar.MINUTE, 0)
-                                set(Calendar.SECOND, 0)
-                            }
-                            val prevMonthEnd = Calendar.getInstance().apply {
-                                set(Calendar.DAY_OF_MONTH, 1)
-                                add(Calendar.DAY_OF_MONTH, -1)
-                                set(Calendar.HOUR_OF_DAY, 23)
-                                set(Calendar.MINUTE, 59)
-                                set(Calendar.SECOND, 59)
-                            }
-                            startDateMillis = prevMonth.timeInMillis
-                            endDateMillis = prevMonthEnd.timeInMillis
-                        },
-                        label = { Text("Mes Pasado", fontSize = 11.sp) },
-                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = FinanceSecondaryContainer)
-                    )
-                    FilterChip(
-                        selected = false,
-                        onClick = {
-                            errorMessage = null
-                            val yearStart = Calendar.getInstance().apply {
-                                set(Calendar.DAY_OF_YEAR, 1)
-                                set(Calendar.HOUR_OF_DAY, 0)
-                                set(Calendar.MINUTE, 0)
-                                set(Calendar.SECOND, 0)
-                            }
-                            startDateMillis = yearStart.timeInMillis
-                            endDateMillis = System.currentTimeMillis()
-                        },
-                        label = { Text("Este Año", fontSize = 11.sp) },
-                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = FinanceSecondaryContainer)
-                    )
+                    item {
+                        FilterChip(
+                            selected = false,
+                            onClick = {
+                                errorMessage = null
+                                val now = Calendar.getInstance()
+                                now.set(Calendar.DAY_OF_MONTH, 1)
+                                now.set(Calendar.HOUR_OF_DAY, 0)
+                                now.set(Calendar.MINUTE, 0)
+                                now.set(Calendar.SECOND, 0)
+                                startDateMillis = now.timeInMillis
+                                endDateMillis = System.currentTimeMillis()
+                            },
+                            label = {
+                                Text(
+                                    text = "Este Mes",
+                                    fontSize = 11.sp,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    letterSpacing = (-0.2).sp
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(selectedContainerColor = FinanceSecondaryContainer)
+                        )
+                    }
+                    item {
+                        FilterChip(
+                            selected = false,
+                            onClick = {
+                                errorMessage = null
+                                val prevMonth = Calendar.getInstance().apply {
+                                    add(Calendar.MONTH, -1)
+                                    set(Calendar.DAY_OF_MONTH, 1)
+                                    set(Calendar.HOUR_OF_DAY, 0)
+                                    set(Calendar.MINUTE, 0)
+                                    set(Calendar.SECOND, 0)
+                                }
+                                val prevMonthEnd = Calendar.getInstance().apply {
+                                    set(Calendar.DAY_OF_MONTH, 1)
+                                    add(Calendar.DAY_OF_MONTH, -1)
+                                    set(Calendar.HOUR_OF_DAY, 23)
+                                    set(Calendar.MINUTE, 59)
+                                    set(Calendar.SECOND, 59)
+                                }
+                                startDateMillis = prevMonth.timeInMillis
+                                endDateMillis = prevMonthEnd.timeInMillis
+                            },
+                            label = {
+                                Text(
+                                    text = "Mes Pasado",
+                                    fontSize = 11.sp,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    letterSpacing = (-0.2).sp
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(selectedContainerColor = FinanceSecondaryContainer)
+                        )
+                    }
+                    item {
+                        FilterChip(
+                            selected = false,
+                            onClick = {
+                                errorMessage = null
+                                val yearStart = Calendar.getInstance().apply {
+                                    set(Calendar.DAY_OF_YEAR, 1)
+                                    set(Calendar.HOUR_OF_DAY, 0)
+                                    set(Calendar.MINUTE, 0)
+                                    set(Calendar.SECOND, 0)
+                                }
+                                startDateMillis = yearStart.timeInMillis
+                                endDateMillis = System.currentTimeMillis()
+                            },
+                            label = {
+                                Text(
+                                    text = "Este Año",
+                                    fontSize = 11.sp,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    letterSpacing = (-0.2).sp
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(selectedContainerColor = FinanceSecondaryContainer)
+                        )
+                    }
                 }
 
                 // Selector de Fecha de Inicio

@@ -449,7 +449,77 @@ object Localization {
         "bills_services_title" to "Pagos Próximos a Vencer",
         "recent_movements_title" to "Movimientos Recientes",
         "no_movements_yet" to "Aún no tienes movimientos registrados",
-        "app_update_announcement_sent" to "El anuncio de actualización fue enviado a los usuarios finales con éxito."
+        "app_update_announcement_sent" to "El anuncio de actualización fue enviado a los usuarios finales con éxito.",
+
+        // Billeteras y Cuentas (Wallets and Accounts)
+        "all_accounts" to "Todas las Cuentas",
+        "accounts_tab" to "Cuentas",
+        "wallets_tab" to "Billeteras",
+        "account_type_credit" to "Crédito",
+        "account_type_debit" to "Débito",
+        "available_balance" to "Saldo Disponible",
+        "available_credit_initial" to "Límite / Saldo Disponible",
+        "bank_account_chip" to "Cuenta Bancaria",
+        "wallet_chip" to "Billetera Digital",
+        "bank_data_section" to "Datos de la Entidad Bancaria",
+        "bank_label" to "Entidad Bancaria",
+        "tool_type_label" to "Tipo de Herramienta:",
+        "account_disabled_notice" to "Esta cuenta o billetera se encuentra desactivada",
+        "disable_account_title" to "¿Desactivar herramienta financiera?",
+        "disable_btn" to "Desactivar",
+        "reactivate_account_title" to "¿Reactivar herramienta financiera?",
+        "reactivate_btn" to "Reactivar",
+        "no_tools_registered" to "No tienes herramientas financieras",
+        "no_tools_description" to "Agrega tus cuentas bancarias o billeteras para empezar a gestionar tus saldos.",
+        "initial_opening_amount" to "Monto Inicial de Apertura",
+
+        // Metas y Simulador de Ahorro (Goals and Savings Simulator)
+        "goal_title_placeholder" to "Título de la Meta (ej. Vacaciones)",
+        "goal_target_amount_label" to "Monto Objetivo a Ahorrar",
+        "goal_initial_deposit_label" to "Abono Inicial de Apertura",
+        "save_goal_btn" to "Guardar Meta",
+        "deposit_to_goal_title" to "Abonar a la Meta",
+        "goal_saved_label" to "Ahorrado:",
+        "deposit_source_account_label" to "Cuenta o Billetera de Origen:",
+        "confirm_deposit_btn" to "Confirmar Abono",
+        "deposit_funds_btn" to "Abonar a Meta",
+        "create_first_goal" to "Crear Primera Meta",
+        "empty_savings_goals" to "No tienes metas de ahorro registradas",
+        "goal_completed_badge" to "¡Meta Cumplida!",
+        "goal_progress_badge" to "En Progreso",
+        "goal_target_label" to "Meta:",
+        "new_goal_btn" to "Nueva Meta",
+        "sim_mode_daily" to "Simulador Diario",
+        "sim_mode_monthly" to "Simulador Mensual",
+        "simulator_header" to "Simulador de Ahorro",
+        "months" to "meses",
+        "years" to "años",
+        "error_deposit_amount_invalid" to "Ingresa un monto válido para abonar",
+        "error_goal_target_invalid" to "El monto objetivo debe ser mayor a 0",
+        "error_goal_title_required" to "El título de la meta es obligatorio",
+        "error_no_active_accounts_for_deposit" to "No tienes cuentas activas con fondos para realizar el abono",
+
+        // Transacciones y Movimientos (Transactions)
+        "search_transactions_placeholder" to "Buscar por comercio o nota...",
+        "all_categories" to "Todas las Categorías",
+        "all_types" to "Todos los Tipos",
+        "incomes_label" to "Solo Ingresos",
+        "expenses_label" to "Solo Gastos",
+        "no_movements_found" to "No se encontraron movimientos",
+        "no_movements_hint" to "Intenta ajustar los filtros de búsqueda o fecha",
+        "export_report_title" to "Exportar Reporte",
+        "clear" to "Limpiar",
+
+        // Facturas y Pagos (Bills)
+        "amount_label" to "Monto a Pagar",
+        "cancel_btn" to "Cancelar",
+
+        // Autenticación y Registro (Auth and Register)
+        "account_type" to "Tipo de Cuenta",
+        "already_account" to "¿Ya tienes una cuenta? Inicia Sesión",
+        "email" to "Correo Electrónico",
+        "phone_prefix_and_number" to "Prefijo y Número de Teléfono",
+        "register_hint_box" to "Completa tus datos para crear tu cuenta"
     )
 
     private val EN = mapOf(
@@ -877,7 +947,76 @@ object Localization {
         "savings_rate_title" to "SAVINGS RATE",
         "bills_services_title" to "Upcoming Due Payments",
         "recent_movements_title" to "Recent Transactions",
-        "no_movements_yet" to "No transactions recorded yet",
-        "app_update_announcement_sent" to "The update announcement was successfully sent to end users."
+        "app_update_announcement_sent" to "The update announcement was successfully sent to end users.",
+
+        // Wallets and Accounts
+        "all_accounts" to "All Accounts",
+        "accounts_tab" to "Accounts",
+        "wallets_tab" to "Wallets",
+        "account_type_credit" to "Credit",
+        "account_type_debit" to "Debit",
+        "available_balance" to "Available Balance",
+        "available_credit_initial" to "Available Limit / Balance",
+        "bank_account_chip" to "Bank Account",
+        "wallet_chip" to "Digital Wallet",
+        "bank_data_section" to "Banking Institution Details",
+        "bank_label" to "Banking Institution",
+        "tool_type_label" to "Tool Type:",
+        "account_disabled_notice" to "This account or wallet is currently disabled",
+        "disable_account_title" to "Disable financial tool?",
+        "disable_btn" to "Disable",
+        "reactivate_account_title" to "Reactivate financial tool?",
+        "reactivate_btn" to "Reactivate",
+        "no_tools_registered" to "No financial tools registered",
+        "no_tools_description" to "Add your bank accounts or wallets to start managing your balances.",
+        "initial_opening_amount" to "Initial Opening Amount",
+
+        // Goals and Savings Simulator
+        "goal_title_placeholder" to "Goal Title (e.g. Vacation)",
+        "goal_target_amount_label" to "Target Amount to Save",
+        "goal_initial_deposit_label" to "Initial Opening Deposit",
+        "save_goal_btn" to "Save Goal",
+        "deposit_to_goal_title" to "Deposit to Goal",
+        "goal_saved_label" to "Saved:",
+        "deposit_source_account_label" to "Source Account or Wallet:",
+        "confirm_deposit_btn" to "Confirm Deposit",
+        "deposit_funds_btn" to "Deposit to Goal",
+        "create_first_goal" to "Create First Goal",
+        "empty_savings_goals" to "No savings goals registered",
+        "goal_completed_badge" to "Goal Completed!",
+        "goal_progress_badge" to "In Progress",
+        "goal_target_label" to "Goal:",
+        "new_goal_btn" to "New Goal",
+        "sim_mode_daily" to "Daily Simulator",
+        "sim_mode_monthly" to "Monthly Simulator",
+        "simulator_header" to "Savings Simulator",
+        "months" to "months",
+        "years" to "years",
+        "error_deposit_amount_invalid" to "Please enter a valid amount to deposit",
+        "error_goal_target_invalid" to "Target amount must be greater than 0",
+        "error_goal_title_required" to "Goal title is required",
+        "error_no_active_accounts_for_deposit" to "You have no active accounts with available funds for deposit",
+
+        // Transactions
+        "search_transactions_placeholder" to "Search by merchant or note...",
+        "all_categories" to "All Categories",
+        "all_types" to "All Types",
+        "incomes_label" to "Income Only",
+        "expenses_label" to "Expenses Only",
+        "no_movements_found" to "No transactions found",
+        "no_movements_hint" to "Try adjusting the search or date filters",
+        "export_report_title" to "Export Report",
+        "clear" to "Clear",
+
+        // Bills
+        "amount_label" to "Amount to Pay",
+        "cancel_btn" to "Cancel",
+
+        // Auth and Register
+        "account_type" to "Account Type",
+        "already_account" to "Already have an account? Sign In",
+        "email" to "Email Address",
+        "phone_prefix_and_number" to "Prefix and Phone Number",
+        "register_hint_box" to "Fill in your details to create your account"
     )
 }

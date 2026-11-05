@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -183,34 +184,65 @@ fun AuditManagementSection(
             }
         }
 
-        // Filtros combinados de Estado y Severidad
-        Row(
+        // Filtros combinados de Estado y Severidad en fila horizontal deslizable (LazyRow).
+        // Evita que los botones se apilen o se deformen verticalmente en pantallas de administración
+        LazyRow(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            FilterChip(
-                selected = selectedResultFilter == "TODOS",
-                onClick = { selectedResultFilter = "TODOS" },
-                label = { Text("Resultados: Todos", style = MaterialTheme.typography.labelSmall) }
-            )
-            FilterChip(
-                selected = selectedResultFilter == "EXITOSOS",
-                onClick = { selectedResultFilter = "EXITOSOS" },
-                label = { Text("Exitosos (${auditLogs.count { it.isSuccess }})", style = MaterialTheme.typography.labelSmall) },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = Color(0xFFDCFCE7),
-                    selectedLabelColor = Color(0xFF15803D)
+            item {
+                FilterChip(
+                    selected = selectedResultFilter == "TODOS",
+                    onClick = { selectedResultFilter = "TODOS" },
+                    label = {
+                        Text(
+                            text = "Resultados: Todos",
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1,
+                            softWrap = false,
+                            letterSpacing = (-0.2).sp
+                        )
+                    }
                 )
-            )
-            FilterChip(
-                selected = selectedResultFilter == "FALLIDOS",
-                onClick = { selectedResultFilter = "FALLIDOS" },
-                label = { Text("Fallidos (${auditLogs.count { !it.isSuccess }})", style = MaterialTheme.typography.labelSmall) },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = Color(0xFFFEE2E2),
-                    selectedLabelColor = FinanceError
+            }
+            item {
+                FilterChip(
+                    selected = selectedResultFilter == "EXITOSOS",
+                    onClick = { selectedResultFilter = "EXITOSOS" },
+                    label = {
+                        Text(
+                            text = "Exitosos (${auditLogs.count { it.isSuccess }})",
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1,
+                            softWrap = false,
+                            letterSpacing = (-0.2).sp
+                        )
+                    },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = Color(0xFFDCFCE7),
+                        selectedLabelColor = Color(0xFF15803D)
+                    )
                 )
-            )
+            }
+            item {
+                FilterChip(
+                    selected = selectedResultFilter == "FALLIDOS",
+                    onClick = { selectedResultFilter = "FALLIDOS" },
+                    label = {
+                        Text(
+                            text = "Fallidos (${auditLogs.count { !it.isSuccess }})",
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1,
+                            softWrap = false,
+                            letterSpacing = (-0.2).sp
+                        )
+                    },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = Color(0xFFFEE2E2),
+                        selectedLabelColor = FinanceError
+                    )
+                )
+            }
         }
 
         // Validación y retroalimentación cuando no hay registros coincidentes

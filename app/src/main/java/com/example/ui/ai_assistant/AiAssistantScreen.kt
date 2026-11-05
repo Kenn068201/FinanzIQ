@@ -257,7 +257,15 @@ fun AiAssistantScreen(
                         onClick = {
                             viewModel.sendAiMessage(prompt)
                         },
-                        label = { Text(prompt, fontSize = 12.sp) },
+                        label = {
+                            Text(
+                                text = prompt,
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                softWrap = false,
+                                letterSpacing = (-0.2).sp
+                            )
+                        },
                         leadingIcon = {
                             Icon(Icons.Default.Lightbulb, contentDescription = null, modifier = Modifier.size(14.dp))
                         },

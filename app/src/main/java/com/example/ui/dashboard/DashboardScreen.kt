@@ -1,5 +1,6 @@
 package com.example.ui.dashboard
 
+import com.example.data.model.CategoryDataHierarchy
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -610,7 +611,7 @@ fun DashboardScreen(
                                 )
                             )
                             Text(
-                                text = "Del total de ingresos",
+                                text = if (lang == com.example.util.AppLanguage.ENGLISH) "Of total income" else "Del total de ingresos",
                                 style = MaterialTheme.typography.bodySmall.copy(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontSize = 11.sp
@@ -658,14 +659,14 @@ fun DashboardScreen(
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Column {
                                     Text(
-                                        text = "${pendingBills.size} Pagos Próximos a Vencer",
+                                        text = "${pendingBills.size} ${if (lang == com.example.util.AppLanguage.ENGLISH) "Upcoming Bills Due" else "Pagos Próximos a Vencer"}",
                                         style = MaterialTheme.typography.bodyMedium.copy(
                                             fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.onSecondaryContainer
                                         )
                                     )
                                     Text(
-                                        text = "Total pendiente: ${formatCordobas(pendingBills.sumOf { it.amount })}",
+                                        text = "${if (lang == com.example.util.AppLanguage.ENGLISH) "Total Pending:" else "Total pendiente:"} ${formatCordobas(pendingBills.sumOf { it.amount })}",
                                         style = MaterialTheme.typography.bodySmall.copy(
                                             color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
                                         )
@@ -721,7 +722,7 @@ fun DashboardScreen(
                 }
             } else {
                 items(transactions.take(5)) { tx ->
-                    SleekTransactionItemRow(tx = tx)
+                    SleekTransactionItemRow(tx = tx, lang = lang)
                 }
             }
 
@@ -752,6 +753,7 @@ fun DashboardScreen(
 @Composable
 fun SleekTransactionItemRow(
     tx: TransactionEntity,
+    lang: com.example.util.AppLanguage = com.example.util.AppLanguage.SPANISH,
     modifier: Modifier = Modifier
 ) {
     val isIncome = tx.type == "INCOME"
@@ -807,7 +809,7 @@ fun SleekTransactionItemRow(
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = tx.category,
+                            text = CategoryDataHierarchy.getCategoryDisplayName(tx.category, lang),
                             style = MaterialTheme.typography.bodySmall.copy(
                                 fontWeight = FontWeight.SemiBold,
                                 color = FinancePrimary,

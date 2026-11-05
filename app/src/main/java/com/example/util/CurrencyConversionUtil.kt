@@ -52,6 +52,7 @@ object CurrencyConversionUtil {
         "CRC" to 14.0617,
         "HNL" to 0.6749,
         "GTQ" to 0.2124,
+        "PAB" to 0.0273042, // Anclado 1:1 con USD
         "MXN" to 0.5419,
         "COP" to 115.4969,
         "DOP" to 1.6409,
@@ -62,7 +63,16 @@ object CurrencyConversionUtil {
         "ARS" to 27.50,
         "UYU" to 1.156,
         "BOB" to 0.1889,
-        "PYG" to 210.45
+        "PYG" to 210.45,
+        "BZD" to 0.0546,
+        "HTG" to 3.60,
+        "TTD" to 0.185,
+        "BSD" to 0.0273042,
+        "BBD" to 0.0546,
+        "AWG" to 0.0489,
+        "ANG" to 0.0489,
+        "GYD" to 5.71,
+        "SRD" to 0.956
     )
 
     /**
@@ -98,10 +108,50 @@ object CurrencyConversionUtil {
             "CRC" -> "Tipo de cambio regional: 1 C$ = 14.06 Colones (₡)"
             "HNL" -> "Tipo de cambio regional: 1 C$ = 0.67 Lempiras (L)"
             "GTQ" -> "Tipo de cambio regional: 1 C$ = 0.21 Quetzales (Q)"
+            "PAB" -> "Tipo de cambio oficial: 1 C$ = 0.027 Balboas (B/.)"
             "MXN" -> "Tipo de cambio oficial: 1 C$ = 0.54 Pesos Mexicanos ($)"
             "COP" -> "Tipo de cambio oficial: 1 C$ = 115.50 Pesos Colombianos ($)"
             "DOP" -> "Tipo de cambio oficial: 1 C$ = 1.64 Pesos Dominicanos (RD$)"
+            "CAD" -> "Tipo de cambio oficial: 1 C$ = 0.038 Dólares Canadienses (C$)"
+            "BRL" -> "Tipo de cambio oficial: 1 C$ = 0.16 Reales Brasileños (R$)"
+            "PEN" -> "Tipo de cambio oficial: 1 C$ = 0.10 Soles Peruanos (S/)"
+            "CLP" -> "Tipo de cambio oficial: 1 C$ = 25.82 Pesos Chilenos ($)"
+            "ARS" -> "Tipo de cambio oficial: 1 C$ = 27.50 Pesos Argentinos ($)"
+            "UYU" -> "Tipo de cambio oficial: 1 C$ = 1.16 Pesos Uruguayos ($)"
+            "BOB" -> "Tipo de cambio oficial: 1 C$ = 0.19 Bolivianos (Bs)"
+            "PYG" -> "Tipo de cambio oficial: 1 C$ = 210.45 Guaraníes (₲)"
+            "BZD" -> "Tipo de cambio oficial: 1 C$ = 0.055 Dólares Beliceños (BZ$)"
+            "HTG" -> "Tipo de cambio oficial: 1 C$ = 3.60 Gourdes Haitianos (G)"
+            "TTD" -> "Tipo de cambio oficial: 1 C$ = 0.19 Dólares TT (TT$)"
+            "BSD" -> "Tipo de cambio oficial: 1 C$ = 0.027 Dólares Bahameños (B$)"
+            "BBD" -> "Tipo de cambio oficial: 1 C$ = 0.055 Dólares Barbados (Bds$)"
+            "AWG" -> "Tipo de cambio oficial: 1 C$ = 0.049 Florines Arubeños (Afl.)"
+            "ANG" -> "Tipo de cambio oficial: 1 C$ = 0.049 Florines Antillanos (NAƒ)"
+            "GYD" -> "Tipo de cambio oficial: 1 C$ = 5.71 Dólares Guyaneses (G$)"
+            "SRD" -> "Tipo de cambio oficial: 1 C$ = 0.96 Dólares Surinameses (Sr$)"
             else -> "Tipo de cambio oficial aplicado según divisas internacionales"
         }
+    }
+
+    /**
+     * Convierte cualquier monto expresado en la moneda actual a su equivalente en USD
+     * para la validación de topes de ingresos y gastos fijados en dólares.
+     */
+    fun convertToUsd(amount: Double, currency: CurrencyOption = activeCurrency): Double {
+        if (currency.code.equals("USD", ignoreCase = true)) return amount
+        val rateToTarget = nioToTargetRates[currency.code.uppercase(Locale.ROOT)] ?: 1.0
+        val amountInNio = if (rateToTarget > 0.0) amount / rateToTarget else amount
+        val usdRate = nioToTargetRates["USD"] ?: 0.0273042
+        return amountInNio * usdRate
+    }
+
+    /**
+     * Sobrecarga de conveniencia que acepta el código ISO de la moneda como String
+     * para facilitar validaciones y pruebas de caja blanca en toda la plataforma.
+     */
+    fun convertToUsd(amount: Double, currencyCode: String): Double {
+        val option = CountryPhoneData.americanCurrencies.find { it.code.equals(currencyCode, ignoreCase = true) }
+            ?: CurrencyOption(currencyCode, currencyCode, currencyCode, currencyCode, "🌐")
+        return convertToUsd(amount, option)
     }
 }

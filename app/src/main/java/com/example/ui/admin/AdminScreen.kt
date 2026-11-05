@@ -16,8 +16,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -97,6 +103,8 @@ import com.example.ui.theme.FinancePrimary
 import com.example.ui.theme.FinanceSecondaryContainer
 import com.example.ui.theme.FinanceSuccess
 import com.example.ui.theme.FinanceSuccessContainer
+import androidx.compose.material3.Surface
+import com.example.util.AppLanguage
 import com.example.util.Localization
 import java.util.Locale
 
@@ -540,9 +548,10 @@ fun AdminScreen(
             AddCategoryDialog(
                 lang = lang,
                 onDismiss = { showAddCategoryDialog = false },
-                onConfirm = { name, type ->
-                    viewModel.addCategory(name, type)
-                    feedbackMessage = Pair(true, "Categoría '$name' creada con éxito.")
+                onConfirm = { name, type, iconEmoji ->
+                    val finalCategoryName = if (iconEmoji.isNotBlank()) "$iconEmoji $name" else name
+                    viewModel.addCategory(finalCategoryName, type)
+                    feedbackMessage = Pair(true, "Categoría '$finalCategoryName' creada con éxito.")
                     showAddCategoryDialog = false
                 }
             )
@@ -1598,35 +1607,64 @@ fun CategoriesManagementSection(
 }
 
 /**
- * Diálogo para Agregar una Nueva Categoría de Ingreso o Gasto.
+ * Diálogo para Agregar una Nueva Categoría de Ingreso o Gasto en la Interfaz de Administrador.
+ * Implementa el selector visual con catálogo enriquecido de más de 500 iconos y emojis organizados por temas,
+ * permitiendo una categorización personalizada e interactiva vinculada a los usuarios.
  */
 @Composable
 fun AddCategoryDialog(
     lang: com.example.util.AppLanguage,
     onDismiss: () -> Unit,
-    onConfirm: (name: String, type: String) -> Unit
+    onConfirm: (name: String, type: String, iconEmoji: String) -> Unit
 ) {
+    val isEnglish = lang == com.example.util.AppLanguage.ENGLISH
     var name by remember { mutableStateOf("") }
     var type by remember { mutableStateOf("EXPENSE") }
+    var selectedEmoji by remember { mutableStateOf("🏷️") }
+    var selectedGroupIndex by remember { mutableStateOf(0) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
 
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text(
-                text = "Nueva Categoría",
-                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = FinancePrimary.copy(alpha = 0.15f),
+                    modifier = Modifier.size(44.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(text = selectedEmoji, fontSize = 22.sp)
+                    }
+                }
+                Column {
+                    Text(
+                        text = if (isEnglish) "New Category" else "Nueva Categoría",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                    )
+                    Text(
+                        text = if (isEnglish) "500+ icon catalog available" else "Catálogo de +500 iconos disponible",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
         },
         text = {
             Column(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 if (errorMsg != null) {
                     ErrorWarningBox(message = errorMsg!!)
                 }
 
+                // Selector de Tipo: Gasto o Ingreso
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -1634,7 +1672,7 @@ fun AddCategoryDialog(
                     FilterChip(
                         selected = type == "EXPENSE",
                         onClick = { type = "EXPENSE" },
-                        label = { Text("Gasto") },
+                        label = { Text(if (isEnglish) "Expense" else "Gasto") },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = Color(0xFFFEE2E2),
                             selectedLabelColor = FinanceError
@@ -1645,7 +1683,7 @@ fun AddCategoryDialog(
                     FilterChip(
                         selected = type == "INCOME",
                         onClick = { type = "INCOME" },
-                        label = { Text("Ingreso") },
+                        label = { Text(if (isEnglish) "Income" else "Ingreso") },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = Color(0xFFDCFCE7),
                             selectedLabelColor = FinanceSuccess
@@ -1654,37 +1692,100 @@ fun AddCategoryDialog(
                     )
                 }
 
+                // Campo para el nombre de la categoría
                 OutlinedTextField(
                     value = name,
                     onValueChange = {
                         name = it
                         errorMsg = null
                     },
-                    label = { Text("Nombre de la categoría") },
-                    placeholder = { Text("ej. Mascotas, Gimnasio") },
+                    label = { Text(if (isEnglish) "Category Name" else "Nombre de la categoría") },
+                    placeholder = { Text(if (isEnglish) "e.g. Pets, Gym, Freelance" else "ej. Mascotas, Gimnasio, Freelance") },
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 )
+
+                // Selector de Grupo Temático del Catálogo de Iconos
+                Text(
+                    text = if (isEnglish) "Select Category Icon" else "Seleccionar Icono de la Categoría",
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    itemsIndexed(CategoryIconCatalog.groups) { index, (groupName, _) ->
+                        FilterChip(
+                            selected = selectedGroupIndex == index,
+                            onClick = { selectedGroupIndex = index },
+                            label = { Text(groupName, fontSize = 11.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = FinancePrimary.copy(alpha = 0.2f),
+                                selectedLabelColor = FinancePrimary
+                            )
+                        )
+                    }
+                }
+
+                // Cuadrícula deslizable con los iconos del grupo seleccionado (+500 en catálogo completo)
+                val currentIcons = CategoryIconCatalog.groups.getOrNull(selectedGroupIndex)?.second ?: CategoryIconCatalog.allIcons
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(140.dp)
+                ) {
+                    LazyVerticalGrid(
+                        columns = GridCells.Adaptive(minSize = 36.dp),
+                        contentPadding = PaddingValues(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        items(currentIcons) { emoji ->
+                            val isSelected = selectedEmoji == emoji
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (isSelected) FinancePrimary else Color.Transparent,
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clickable { selectedEmoji = emoji }
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = emoji,
+                                        fontSize = 18.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
             Button(
                 onClick = {
                     if (name.isBlank()) {
-                        errorMsg = "El nombre de la categoría no puede estar vacío."
+                        errorMsg = if (isEnglish) "The category name cannot be empty." else "El nombre de la categoría no puede estar vacío."
                         return@Button
                     }
-                    onConfirm(name.trim(), type)
+                    onConfirm(name.trim(), type, selectedEmoji)
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = FinancePrimary)
             ) {
-                Text("Crear Categoría", fontWeight = FontWeight.Bold)
+                Text(
+                    text = if (isEnglish) "Create Category" else "Crear Categoría",
+                    fontWeight = FontWeight.Bold
+                )
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancelar")
+                Text(if (isEnglish) "Cancel" else "Cancelar")
             }
         },
         shape = RoundedCornerShape(18.dp),

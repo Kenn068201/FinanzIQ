@@ -802,7 +802,8 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                     category = category,
                     subCategory = subCategory,
                     dateMillis = dateMillis,
-                    note = note.trim()
+                    note = note.trim(),
+                    accountId = accountId
                 )
             )
 
@@ -931,7 +932,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         _selectedCategoryFilter.value = "Todas"
         _selectedPeriodFilter.value = "Todos"
         _selectedTypeFilter.value = "TODOS"
-        _clientAppVersion.value = "1.0.0"
+        // No reiniciar _clientAppVersion para que la versión actualizada se conserve
         _dismissedOptionalVersion.value = null
         // Nota: _currentLanguage y _isDarkMode se mantienen intactos tal como lo requiere el sistema
     }
@@ -971,7 +972,27 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
     fun deleteTransaction(id: Long) {
         viewModelScope.launch {
-            repository.deleteTransaction(id)
+            val tx = repository.getTransactionById(id)
+            if (tx != null) {
+                // Al eliminar un movimiento del historial debe afectar al balance general de la tarjeta
+                // del dashboard, así como también al balance de la cuenta a la que se asoció el movimiento
+                val accId = tx.accountId
+                val targetAccount = if (accId != null && accId > 0L) {
+                    repository.getAccountById(accId)
+                } else {
+                    _financialAccounts.value.firstOrNull { it.isActive }
+                }
+
+                if (targetAccount != null) {
+                    val newBalance = if (tx.type == "INCOME") {
+                        (targetAccount.balance - tx.amount).coerceAtLeast(0.0)
+                    } else {
+                        targetAccount.balance + tx.amount
+                    }
+                    repository.updateAccountBalance(targetAccount.id, newBalance)
+                }
+                repository.deleteTransaction(id)
+            }
         }
     }
 
@@ -1854,6 +1875,15 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     fun toggleAccountActive(account: FinancialAccountEntity) {
         viewModelScope.launch {
             repository.setFinancialAccountStatus(account.id, !account.isActive)
+        }
+    }
+
+    /**
+     * Elimina definitivamente una cuenta o billetera deshabilitada.
+     */
+    fun deleteFinancialAccount(account: FinancialAccountEntity) {
+        viewModelScope.launch {
+            repository.deleteFinancialAccount(account)
         }
     }
 

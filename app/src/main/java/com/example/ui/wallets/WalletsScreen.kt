@@ -30,10 +30,12 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.PhoneIphone
 import androidx.compose.material.icons.filled.Refresh
+import com.example.ui.components.DeleteConfirmationDialog
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -79,6 +81,7 @@ import com.example.ui.theme.FinanceSuccess
 import com.example.ui.theme.FinanceSuccessContainer
 import com.example.ui.transactions.TransferFundsDialog
 import com.example.ui.components.formatCurrency
+import com.example.util.AppLanguage
 import com.example.util.Localization
 import java.util.Locale
 
@@ -103,6 +106,7 @@ fun WalletsScreen(
     var selectedTab by remember { mutableIntStateOf(0) } // 0: Todas, 1: Cuentas, 2: Billeteras
 
     var accountToToggle by remember { mutableStateOf<FinancialAccountEntity?>(null) }
+    var accountToDeletePermanent by remember { mutableStateOf<FinancialAccountEntity?>(null) }
     var showTransferDialog by remember { mutableStateOf(false) }
 
     val filteredList = when (selectedTab) {
@@ -341,7 +345,8 @@ fun WalletsScreen(
                         account = item,
                         currencySymbol = currency.symbol,
                         lang = lang,
-                        onToggleActive = { accountToToggle = item }
+                        onToggleActive = { accountToToggle = item },
+                        onDeletePermanent = { accountToDeletePermanent = item }
                     )
                 }
             }
@@ -396,6 +401,23 @@ fun WalletsScreen(
             )
         }
 
+        // Diálogo de Confirmación para Eliminar Definitivamente una cuenta o billetera deshabilitada
+        accountToDeletePermanent?.let { acc ->
+            DeleteConfirmationDialog(
+                title = if (lang == AppLanguage.SPANISH) "Eliminar Cuenta Definitivamente" else "Permanently Delete Account",
+                message = if (lang == AppLanguage.SPANISH)
+                    "¿Estás seguro de eliminar permanentemente '${acc.bankName}' (${acc.accountNumber})? Esta acción afectará los datos de tu balance y registros financieros. ¿Deseas confirmar la eliminación?"
+                else
+                    "Are you sure you want to permanently delete '${acc.bankName}' (${acc.accountNumber})? This action will affect your balance and financial records. Do you wish to confirm?",
+                lang = lang,
+                onConfirm = {
+                    viewModel.deleteFinancialAccount(acc)
+                    accountToDeletePermanent = null
+                },
+                onDismiss = { accountToDeletePermanent = null }
+            )
+        }
+
         // Diálogo de Transferencia entre Cuentas y Billeteras
         if (showTransferDialog) {
             TransferFundsDialog(
@@ -420,6 +442,7 @@ fun FinancialAccountCard(
     currencySymbol: String,
     lang: com.example.util.AppLanguage,
     onToggleActive: () -> Unit,
+    onDeletePermanent: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val isWallet = account.toolType == "BILLETERA"
@@ -532,27 +555,48 @@ fun FinancialAccountCard(
                         )
                     }
                 } else {
-                    Button(
-                        onClick = onToggleActive,
-                        colors = ButtonDefaults.buttonColors(containerColor = FinanceSuccess),
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                        modifier = Modifier
-                            .height(34.dp)
-                            .testTag("reactivate_account_btn_${account.id}")
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = Localization.t("reactivate_btn", lang),
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = Color.White
-                        )
+                        Button(
+                            onClick = onToggleActive,
+                            colors = ButtonDefaults.buttonColors(containerColor = FinanceSuccess),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                            modifier = Modifier
+                                .height(34.dp)
+                                .testTag("reactivate_account_btn_${account.id}")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = Localization.t("reactivate_btn", lang),
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = Color.White
+                            )
+                        }
+
+                        IconButton(
+                            onClick = onDeletePermanent,
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(FinanceError.copy(alpha = 0.12f))
+                                .testTag("delete_permanent_account_btn_${account.id}")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = if (lang == AppLanguage.SPANISH) "Eliminar definitivamente" else "Permanently delete",
+                                tint = FinanceError,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                 }
             }

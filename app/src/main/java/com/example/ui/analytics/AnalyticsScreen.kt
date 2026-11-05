@@ -288,9 +288,10 @@ fun AnalyticsScreen(
                 }
             }
 
-            // Selector de período
+            // Selector de período horizontal deslizable (LazyRow)
+            // Permite desplazamiento en pantallas de cualquier tamaño y previene compresión o salto de línea en los botones de filtro
             item {
-                Row(
+                LazyRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -299,12 +300,19 @@ fun AnalyticsScreen(
                         "Mensual" to "analytics_period_monthly",
                         "Anual" to "analytics_period_yearly"
                     )
-                    periodOptions.forEach { (periodKey, labelKey) ->
+                    items(periodOptions) { (periodKey, labelKey) ->
                         val translatedPeriod = Localization.t(labelKey, lang)
                         FilterChip(
                             selected = selectedPeriod == periodKey,
                             onClick = { selectedPeriod = periodKey },
-                            label = { Text(Localization.t("analytics_balance_period", lang, translatedPeriod)) },
+                            label = {
+                                Text(
+                                    text = Localization.t("analytics_balance_period", lang, translatedPeriod),
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    letterSpacing = (-0.2).sp
+                                )
+                            },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = FinanceSecondaryContainer,
                                 selectedLabelColor = FinancePrimary
@@ -453,9 +461,12 @@ fun AnalyticsScreen(
                 SectionHeader(title = Localization.t("analytics_vertical_bars_header", lang))
             }
 
-            // Chips de filtro agrupados
+            // Chips de filtro agrupados en fila horizontal deslizable
             item {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
                     val filterOptions = listOf(
                         "Todos" to "analytics_group_all",
                         "Gastos Fijos" to "analytics_group_fixed",
@@ -469,7 +480,14 @@ fun AnalyticsScreen(
                                 selectedGroupFilter = filterVal
                                 selectedCategoryForSubDetail = null
                             },
-                            label = { Text(Localization.t(filterKey, lang)) },
+                            label = {
+                                Text(
+                                    text = Localization.t(filterKey, lang),
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    letterSpacing = (-0.2).sp
+                                )
+                            },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = FinanceSecondaryContainer,
                                 selectedLabelColor = FinancePrimary
@@ -598,13 +616,13 @@ fun AnalyticsScreen(
 
                                         Spacer(modifier = Modifier.height(6.dp))
 
-                                        // Categoría: Emoji y nombre abreviado
+                                        // Categoría: Emoji y nombre abreviado traducido
                                         Text(
                                             text = item.icon,
                                             style = MaterialTheme.typography.titleMedium
                                         )
                                         Text(
-                                            text = item.categoryName,
+                                            text = CategoryDataHierarchy.getCategoryDisplayName(item.categoryName, lang),
                                             style = MaterialTheme.typography.labelSmall.copy(
                                                 color = if (isSelected) FinancePrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
@@ -636,7 +654,8 @@ fun AnalyticsScreen(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text(
-                                                text = Localization.t("analytics_subcategories_of", lang, selectedCat.icon, selectedCat.categoryName),
+                                                // Traducción dinámica del nombre de la categoría padre
+                                                text = Localization.t("analytics_subcategories_of", lang, selectedCat.icon, CategoryDataHierarchy.getCategoryDisplayName(selectedCat.categoryName, lang)),
                                                 style = MaterialTheme.typography.titleSmall.copy(
                                                     fontWeight = FontWeight.Bold,
                                                     color = MaterialTheme.colorScheme.onSurface
@@ -696,7 +715,8 @@ fun AnalyticsScreen(
                                                             style = MaterialTheme.typography.labelMedium
                                                         )
                                                         Text(
-                                                            text = sub.name,
+                                                            // Traducción dinámica de la subcategoría
+                                                            text = CategoryDataHierarchy.getCategoryDisplayName(sub.name, lang),
                                                             style = MaterialTheme.typography.labelSmall.copy(
                                                                 fontSize = 9.sp,
                                                                 textAlign = TextAlign.Center,
@@ -753,14 +773,22 @@ fun AnalyticsScreen(
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Column {
                                         Text(
-                                            text = item.categoryName,
+                                            // Traducción dinámica de la categoría
+                                            text = CategoryDataHierarchy.getCategoryDisplayName(item.categoryName, lang),
                                             style = MaterialTheme.typography.bodyMedium.copy(
                                                 fontWeight = FontWeight.Bold,
                                                 color = MaterialTheme.colorScheme.onSurface
                                             )
                                         )
+                                        // Traducción dinámica del grupo de gasto
+                                        val groupDisplay = when {
+                                            item.group.contains("Fijo", true) -> Localization.t("group_fixed_expenses", lang)
+                                            item.group.contains("Variable", true) || item.group.contains("Deseo", true) -> Localization.t("group_variable_expenses", lang)
+                                            item.group.contains("Deuda", true) -> Localization.t("group_debt_payments", lang)
+                                            else -> item.group
+                                        }
                                         Text(
-                                            text = item.group,
+                                            text = groupDisplay,
                                             style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
                                         )
                                     }
@@ -826,7 +854,8 @@ fun AnalyticsScreen(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text(
-                                                text = "${sub.icon} ${sub.name}",
+                                                // Traducción dinámica de la subcategoría
+                                                text = "${sub.icon} ${CategoryDataHierarchy.getCategoryDisplayName(sub.name, lang)}",
                                                 style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurface)
                                             )
                                             Text(
