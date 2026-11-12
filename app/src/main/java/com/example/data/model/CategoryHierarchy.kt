@@ -1,5 +1,8 @@
 package com.example.data.model
 
+import com.example.util.AppLanguage
+import java.util.Locale
+
 data class SubcategoryItem(
     val id: String,
     val nameEs: String,
@@ -45,10 +48,11 @@ object CategoryDataHierarchy {
         titleEs = "Gastos Fijos",
         titleEn = "Fixed Expenses",
         categories = listOf(
+            // Categoría unificada de Vivienda (eliminada duplicación anterior "Vivienda/Hogar")
             CategoryItem(
                 id = "vivienda",
-                nameEs = "Vivienda/Hogar",
-                nameEn = "Housing/Home",
+                nameEs = "Vivienda",
+                nameEn = "Housing",
                 iconEmoji = "🏠"
             ),
             CategoryItem(
@@ -214,8 +218,9 @@ object CategoryDataHierarchy {
         )
     )
 
+    // Categoría unificada de Salario (eliminada duplicación anterior "Salario / Sueldo")
     val activeIncomeCategories = listOf(
-        CategoryItem("salario", "Salario / Sueldo", "Salary / Wages", "💼"),
+        CategoryItem("salario", "Salario", "Salary", "💼"),
         CategoryItem("honorarios", "Honorarios Profesionales", "Professional Fees", "📄"),
         CategoryItem("ventas", "Ventas Directas", "Direct Sales", "🛍️"),
         CategoryItem("comisiones", "Comisiones", "Commissions", "🎯"),
@@ -233,4 +238,82 @@ object CategoryDataHierarchy {
         "Binance / Crypto Wallet",
         "PayPal / Wise"
     )
+
+    /**
+     * Retorna el nombre traducido de una categoría o subcategoría según el idioma activo del usuario.
+     * Si el idioma seleccionado es español, conserva el nombre en español.
+     * Si es inglés, busca la traducción correspondiente en el catálogo jerárquico o en los términos equivalentes.
+     */
+    fun getCategoryDisplayName(name: String, lang: AppLanguage): String {
+        if (name.isBlank()) return name
+        val trimmed = name.trim()
+        if (lang == AppLanguage.SPANISH) {
+            // Si el nombre viene en inglés por algún registro previo, traducirlo a español
+            val allCats = fixedExpenseGroup.categories + variableExpenseGroup.categories + debtPaymentGroup.categories + activeIncomeCategories
+            allCats.find { it.nameEn.equals(trimmed, ignoreCase = true) }?.let { return it.nameEs }
+            passiveIncomeCategories.find { it.titleEn.equals(trimmed, ignoreCase = true) }?.let { return it.titleEs }
+            allCats.flatMap { it.subcategories }.find { it.nameEn.equals(trimmed, ignoreCase = true) }?.let { return it.nameEs }
+            return trimmed
+        }
+
+        // Búsqueda en categorías principales
+        val allCats = fixedExpenseGroup.categories + variableExpenseGroup.categories + debtPaymentGroup.categories + activeIncomeCategories
+        allCats.find { it.nameEs.equals(trimmed, ignoreCase = true) }?.let { return it.nameEn }
+        passiveIncomeCategories.find { it.titleEs.equals(trimmed, ignoreCase = true) }?.let { return it.titleEn }
+
+        // Búsqueda en subcategorías
+        allCats.flatMap { it.subcategories }.find { it.nameEs.equals(trimmed, ignoreCase = true) }?.let { return it.nameEn }
+
+        // Equivalencias directas para categorías comunes y registros predeterminados
+        return when (trimmed.lowercase(Locale.ROOT)) {
+            "alimentación", "alimentacion", "alimentación básica", "alimentacion basica" -> "Basic Groceries"
+            "transporte", "gasolina y transporte" -> "Transportation"
+            "salario", "sueldo", "pago de quincena", "salarios" -> "Salary"
+            "vivienda" -> "Housing"
+            "servicios públicos", "servicios publicos", "servicios" -> "Public Utilities"
+            "salud" -> "Health"
+            "educación", "educacion" -> "Education"
+            "comida fuera y delivery", "comida fuera", "comida" -> "Dining Out & Delivery"
+            "entretenimiento y ocio", "entretenimiento", "ocio" -> "Entertainment & Leisure"
+            "suscripciones digitales", "suscripciones" -> "Digital Subscriptions"
+            "compras y cuidado personal", "compras" -> "Shopping & Self Care"
+            "regalos y donaciones" -> "Gifts & Donations"
+            "créditos y préstamos", "creditos y prestamos", "créditos", "deudas", "pago de deudas" -> "Debt Payments"
+            "bienes raíces", "bienes raices" -> "Real Estate"
+            "inversiones financieras", "inversiones" -> "Financial Investments"
+            "negocios automatizados" -> "Automated Businesses"
+            "honorarios profesionales", "honorarios" -> "Professional Fees"
+            "ventas directas", "ventas" -> "Direct Sales"
+            "comisiones" -> "Commissions"
+            "otros ingresos activos", "otros ingresos" -> "Other Active Income"
+            "gasolina" -> "Gasoline"
+            "agua" -> "Water"
+            "luz", "electricidad" -> "Electricity"
+            "internet", "internet y telefonía", "internet y telefonia" -> "Internet & Phone"
+            "mantenimiento del auto" -> "Car Maintenance"
+            "peajes y estacionamiento" -> "Tolls & Parking"
+            "seguro médico", "seguro medico" -> "Health Insurance"
+            "medicamentos con receta", "medicamentos" -> "Prescription Meds"
+            "consultas médicas y dentales", "consultas medicas" -> "Medical & Dental Visits"
+            "matrículas", "matriculas" -> "Tuition"
+            "útiles escolares", "utiles escolares" -> "School Supplies"
+            "restaurantes" -> "Restaurants"
+            "cafeterías", "cafeterias" -> "Coffee Shops"
+            "apps de delivery" -> "Delivery Apps"
+            "cine" -> "Movies & Cinema"
+            "salidas con amigos" -> "Outings with Friends"
+            "libros" -> "Books"
+            "videojuegos y pasatiempos" -> "Video Games & Hobbies"
+            "streaming de video" -> "Video Streaming"
+            "streaming de música", "streaming de musica" -> "Music Streaming"
+            "ropa, calzado y accesorios" -> "Clothing & Shoes"
+            "peluquería, barbería y estética", "peluqueria" -> "Barber & Salon"
+            "gimnasio, membresías deportivas", "gimnasio" -> "Gym & Sports Memberships"
+            "tarjeta de crédito", "tarjeta de credito" -> "Credit Card"
+            "préstamos personales", "prestamos personales" -> "Personal Loans"
+            "todas", "todas las categorías", "todas las categorias" -> "All Categories"
+            "todos", "todos los tipos" -> "All Types"
+            else -> trimmed
+        }
+    }
 }

@@ -1,5 +1,6 @@
 package com.example.ui.dashboard
 
+import com.example.data.model.CategoryDataHierarchy
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -27,6 +28,7 @@ import androidx.compose.material.icons.filled.ElectricBolt
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Percent
+import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -40,6 +42,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,6 +58,11 @@ import com.example.data.local.TransactionEntity
 import com.example.ui.FinanceViewModel
 import com.example.ui.components.SectionHeader
 import com.example.ui.components.formatCordobas
+import com.example.ui.reports.ExportPdfReportDialog
+import com.example.ui.settings.AppSettingsDialog
+import com.example.util.AppLanguage
+import com.example.util.CurrencyConversionUtil
+import com.example.util.Localization
 import com.example.ui.theme.FinanceBackground
 import com.example.ui.theme.FinanceBorderSky
 import com.example.ui.theme.FinanceError
@@ -77,16 +87,25 @@ fun DashboardScreen(
     onOpenAddTransaction: (type: String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val lang by viewModel.currentLanguage.collectAsState()
     val currentUser by viewModel.currentUser.collectAsState()
     val transactions by viewModel.allTransactions.collectAsState()
     val summary by viewModel.financialSummary.collectAsState()
     val savingsGoals by viewModel.savingsGoals.collectAsState()
     val bills by viewModel.bills.collectAsState()
+    val accounts by viewModel.financialAccounts.collectAsState()
+    val selectedCurrency by viewModel.selectedCurrency.collectAsState()
+    var showExportPdfDialog by remember { mutableStateOf(false) }
+    var showSettingsDialog by remember { mutableStateOf(false) }
+
+    // El saldo de la tarjeta del dashboard principal coincide de forma reactiva con la suma de las billeteras/cuentas
+    val totalWalletBalance = accounts.filter { it.isActive }.sumOf { it.balance }
+    val heroBalance = if (accounts.isNotEmpty()) totalWalletBalance else summary.balance
 
     val pendingBills = bills.filter { !it.isPaid }
 
     Surface(
-        color = FinanceBackground,
+        color = MaterialTheme.colorScheme.background,
         modifier = modifier.fillMaxSize()
     ) {
         LazyColumn(
@@ -106,30 +125,31 @@ fun DashboardScreen(
                 ) {
                     Column {
                         Text(
-                            text = "BIENVENIDO",
+                            text = Localization.t("welcome", lang),
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 1.2.sp,
-                                color = Color(0xFF94A3B8)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         )
                         Text(
                             text = "${currentUser?.firstName ?: "Usuario"} ${currentUser?.lastName ?: ""}".trim(),
                             style = MaterialTheme.typography.titleLarge.copy(
                                 fontWeight = FontWeight.ExtraBold,
-                                color = Color(0xFF0F172A)
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         )
                     }
 
-                    // Sleek Avatar with Double Ring/Square styling
+                    // Botón de Perfil / Ajustes al pulsar sobre el avatar del dashboard inicial
                     Box(
                         modifier = Modifier
                             .size(48.dp)
                             .clip(RoundedCornerShape(16.dp))
-                            .background(Color(0xFFE0F2FE))
-                            .border(2.dp, Color(0xFFF0F9FF), RoundedCornerShape(16.dp))
-                            .clickable { onNavigateToAiAssistant() },
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .border(2.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
+                            .clickable { showSettingsDialog = true }
+                            .testTag("avatar_profile_settings_button"),
                         contentAlignment = Alignment.Center
                     ) {
                         val initials = ((currentUser?.firstName?.take(1) ?: "U") + (currentUser?.lastName?.take(1) ?: "")).uppercase()
@@ -154,9 +174,9 @@ fun DashboardScreen(
             item {
                 Card(
                     shape = RoundedCornerShape(28.dp),
-                    colors = CardDefaults.cardColors(containerColor = FinancePrimaryContainer),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
                     border = CardDefaults.outlinedCardBorder().copy(
-                        brush = androidx.compose.ui.graphics.SolidColor(FinanceBorderSky),
+                        brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.outlineVariant),
                         width = 1.dp
                     ),
                     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
@@ -173,17 +193,17 @@ fun DashboardScreen(
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = "Balance Mensual",
+                                    text = Localization.t("monthly_balance", lang),
                                     style = MaterialTheme.typography.bodyMedium.copy(
-                                        color = Color(0xFF075985),
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
                                         fontWeight = FontWeight.SemiBold
                                     )
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "• Billeteras ➔",
+                                    text = Localization.t("wallets_shortcut_label", lang),
                                     style = MaterialTheme.typography.labelSmall.copy(
-                                        color = FinancePrimary,
+                                        color = MaterialTheme.colorScheme.primary,
                                         fontWeight = FontWeight.Bold
                                     )
                                 )
@@ -191,13 +211,13 @@ fun DashboardScreen(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(10.dp))
-                                    .background(Color.White.copy(alpha = 0.65f))
+                                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.35f))
                                     .padding(horizontal = 10.dp, vertical = 4.dp)
                             ) {
                                 Text(
                                     text = SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(Date()).uppercase(),
                                     style = MaterialTheme.typography.labelSmall.copy(
-                                        color = Color(0xFF0369A1),
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
                                         fontWeight = FontWeight.ExtraBold,
                                         letterSpacing = 0.6.sp
                                     )
@@ -207,10 +227,11 @@ fun DashboardScreen(
 
                         Spacer(modifier = Modifier.height(10.dp))
 
+                        // Refleja el saldo exacto consolidado de las billeteras activas del usuario con conversión de moneda oficial
                         Text(
-                            text = formatCordobas(summary.balance),
+                            text = CurrencyConversionUtil.formatWithConversion(heroBalance, selectedCurrency),
                             style = MaterialTheme.typography.displayMedium.copy(
-                                color = Color(0xFF0C4A6E),
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
                                 fontWeight = FontWeight.ExtraBold
                             )
                         )
@@ -226,21 +247,21 @@ fun DashboardScreen(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(18.dp))
-                                    .background(Color.White.copy(alpha = 0.55f))
+                                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.35f))
                                     .padding(horizontal = 14.dp, vertical = 12.dp)
                             ) {
                                 Column {
                                     Text(
-                                        text = "INGRESOS",
+                                        text = Localization.t("income_badge", lang),
                                         style = MaterialTheme.typography.labelSmall.copy(
-                                            color = Color(0xFF0369A1),
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
                                             fontWeight = FontWeight.ExtraBold,
                                             letterSpacing = 0.8.sp
                                         )
                                     )
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
-                                        text = "+ ${formatCordobas(summary.totalIncome)}",
+                                        text = "+ ${CurrencyConversionUtil.formatWithConversion(summary.totalIncome, selectedCurrency)}",
                                         style = MaterialTheme.typography.titleMedium.copy(
                                             color = FinanceSuccess,
                                             fontWeight = FontWeight.Bold
@@ -254,21 +275,21 @@ fun DashboardScreen(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(18.dp))
-                                    .background(Color.White.copy(alpha = 0.55f))
+                                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.35f))
                                     .padding(horizontal = 14.dp, vertical = 12.dp)
                             ) {
                                 Column {
                                     Text(
-                                        text = "GASTOS",
+                                        text = Localization.t("expenses_badge", lang),
                                         style = MaterialTheme.typography.labelSmall.copy(
-                                            color = Color(0xFF0369A1),
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
                                             fontWeight = FontWeight.ExtraBold,
                                             letterSpacing = 0.8.sp
                                         )
                                     )
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
-                                        text = "- ${formatCordobas(summary.totalExpense)}",
+                                        text = "- ${CurrencyConversionUtil.formatWithConversion(summary.totalExpense, selectedCurrency)}",
                                         style = MaterialTheme.typography.titleMedium.copy(
                                             color = FinanceError,
                                             fontWeight = FontWeight.Bold
@@ -281,14 +302,14 @@ fun DashboardScreen(
                 }
             }
 
-            // Sleek AI Assistant Card (White card with sparkles badge and quote)
+            // Sleek AI Assistant Card
             item {
                 Card(
                     shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     border = CardDefaults.outlinedCardBorder().copy(
-                        brush = androidx.compose.ui.graphics.SolidColor(Color(0xFFE0F2FE)),
-                        width = 1.5.dp
+                        brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.outlineVariant),
+                        width = 1.dp
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -303,7 +324,7 @@ fun DashboardScreen(
                             modifier = Modifier
                                 .size(42.dp)
                                 .clip(RoundedCornerShape(14.dp))
-                                .background(Color(0xFFFEF3C7)),
+                                .background(MaterialTheme.colorScheme.secondaryContainer),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(text = "✨", fontSize = 20.sp)
@@ -311,11 +332,11 @@ fun DashboardScreen(
                         Spacer(modifier = Modifier.width(14.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "ASISTENTE FINANCIERO IA",
+                                text = Localization.t("ai_badge", lang),
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontWeight = FontWeight.Bold,
                                     letterSpacing = 0.8.sp,
-                                    color = Color(0xFF94A3B8)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             )
                             Spacer(modifier = Modifier.height(4.dp))
@@ -324,7 +345,7 @@ fun DashboardScreen(
                             Text(
                                 text = "\"$topInsight\"",
                                 style = MaterialTheme.typography.bodyMedium.copy(
-                                    color = Color(0xFF334155),
+                                    color = MaterialTheme.colorScheme.onSurface,
                                     lineHeight = 20.sp,
                                     fontWeight = FontWeight.Normal
                                 )
@@ -336,61 +357,88 @@ fun DashboardScreen(
 
             // Quick Actions Bar (Sleek Pills)
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Button(
-                        onClick = { onOpenAddTransaction("INCOME") },
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = FinanceSecondaryContainer),
-                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(46.dp)
-                            .testTag("add_income_quick_button")
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = null, tint = FinancePrimary, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Ingreso", color = FinancePrimary, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
+                        Button(
+                            onClick = { onOpenAddTransaction("INCOME") },
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = FinanceSecondaryContainer),
+                            elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(46.dp)
+                                .testTag("add_income_quick_button")
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, tint = FinancePrimary, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(if (lang == AppLanguage.SPANISH) "Ingreso" else "Income", color = FinancePrimary, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
+                        }
+
+                        Button(
+                            onClick = { onOpenAddTransaction("EXPENSE") },
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                            elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(46.dp)
+                                .testTag("add_expense_quick_button")
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(if (lang == AppLanguage.SPANISH) "Gasto" else "Expense", color = MaterialTheme.colorScheme.onErrorContainer, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
+                        }
                     }
 
-                    Button(
-                        onClick = { onOpenAddTransaction("EXPENSE") },
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFE4E6)),
-                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(46.dp)
-                            .testTag("add_expense_quick_button")
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = null, tint = FinanceError, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Gasto", color = FinanceError, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
-                    }
+                        OutlinedButton(
+                            onClick = { showExportPdfDialog = true },
+                            shape = RoundedCornerShape(16.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
+                            colors = ButtonDefaults.outlinedButtonColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f)),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(46.dp)
+                                .testTag("dashboard_export_pdf_button")
+                        ) {
+                            Icon(Icons.Default.PictureAsPdf, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (lang == AppLanguage.SPANISH) "Reporte PDF" else "PDF Report",
+                                color = MaterialTheme.colorScheme.error,
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.labelMedium
+                            )
+                        }
 
-                    OutlinedButton(
-                        onClick = onNavigateToSavings,
-                        shape = RoundedCornerShape(16.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCBD5E1)),
-                        modifier = Modifier
-                            .weight(1.1f)
-                            .height(46.dp)
-                            .testTag("simulate_savings_button")
-                    ) {
-                        Icon(Icons.Default.Calculate, contentDescription = null, tint = FinancePrimary, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Simulador", color = Color(0xFF0F172A), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+                        OutlinedButton(
+                            onClick = onNavigateToSavings,
+                            shape = RoundedCornerShape(16.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(46.dp)
+                                .testTag("simulate_savings_button")
+                        ) {
+                            Icon(Icons.Default.Calculate, contentDescription = null, tint = FinancePrimary, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(if (lang == AppLanguage.SPANISH) "Simulador" else "Simulator", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+                        }
                     }
                 }
             }
 
-            // Metas y Presupuesto Section (Sleek slate-50 Card with clean progress bar)
+            // Metas y Presupuesto Section
             item {
                 SectionHeader(
-                    title = "Metas y Presupuesto",
-                    actionText = "Ver Todo",
+                    title = Localization.t("savings_goals_title", lang),
+                    actionText = Localization.t("see_all", lang),
                     onActionClick = onNavigateToSavings
                 )
             }
@@ -399,9 +447,9 @@ fun DashboardScreen(
                 val primaryGoal = savingsGoals.firstOrNull()
                 Card(
                     shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                     border = CardDefaults.outlinedCardBorder().copy(
-                        brush = androidx.compose.ui.graphics.SolidColor(Color(0xFFF1F5F9)),
+                        brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.outlineVariant),
                         width = 1.dp
                     ),
                     modifier = Modifier
@@ -425,14 +473,14 @@ fun DashboardScreen(
                                 text = goalTitle,
                                 style = MaterialTheme.typography.bodyMedium.copy(
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF475569)
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                             )
                             Text(
                                 text = "$progressPercent%",
                                 style = MaterialTheme.typography.labelMedium.copy(
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF94A3B8)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             )
                         }
@@ -443,7 +491,7 @@ fun DashboardScreen(
                         LinearProgressIndicator(
                             progress = { progressRatio },
                             color = FinancePrimary,
-                            trackColor = Color(0xFFE2E8F0),
+                            trackColor = MaterialTheme.colorScheme.surfaceVariant,
                             strokeCap = StrokeCap.Round,
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -456,7 +504,7 @@ fun DashboardScreen(
                         Text(
                             text = if (primaryGoal != null) "Ahorrado: ${formatCordobas(currentAmt)} de ${formatCordobas(targetAmt)}" else "Si ahorras C$500 al mes, en un año tendrás C$6,000.",
                             style = MaterialTheme.typography.bodySmall.copy(
-                                color = Color(0xFF64748B),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 11.sp
                             )
                         )
@@ -473,9 +521,9 @@ fun DashboardScreen(
                     // Month End Spending Prediction
                     Card(
                         shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                         border = CardDefaults.outlinedCardBorder().copy(
-                            brush = androidx.compose.ui.graphics.SolidColor(Color(0xFFF1F5F9)),
+                            brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.outlineVariant),
                             width = 1.dp
                         ),
                         modifier = Modifier
@@ -489,11 +537,11 @@ fun DashboardScreen(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Text(
-                                    text = "PREDICCIÓN MES",
+                                    text = Localization.t("prediction_title", lang),
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = FontWeight.Bold,
                                         letterSpacing = 0.6.sp,
-                                        color = Color(0xFF0369A1)
+                                        color = MaterialTheme.colorScheme.primary
                                     )
                                 )
                                 Icon(
@@ -508,13 +556,13 @@ fun DashboardScreen(
                                 text = formatCordobas(summary.projectedMonthEndExpense),
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = Color(0xFF0F172A)
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                             )
                             Text(
-                                text = "Proyección al cierre",
+                                text = Localization.t("projected_month_end", lang),
                                 style = MaterialTheme.typography.bodySmall.copy(
-                                    color = Color(0xFF94A3B8),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontSize = 11.sp
                                 )
                             )
@@ -524,9 +572,9 @@ fun DashboardScreen(
                     // Savings Rate Indicator
                     Card(
                         shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                         border = CardDefaults.outlinedCardBorder().copy(
-                            brush = androidx.compose.ui.graphics.SolidColor(Color(0xFFF1F5F9)),
+                            brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.outlineVariant),
                             width = 1.dp
                         ),
                         modifier = Modifier
@@ -540,11 +588,11 @@ fun DashboardScreen(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Text(
-                                    text = "TASA DE AHORRO",
+                                    text = Localization.t("savings_rate_title", lang),
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = FontWeight.Bold,
                                         letterSpacing = 0.6.sp,
-                                        color = Color(0xFF065F46)
+                                        color = FinanceSuccess
                                     )
                                 )
                                 Icon(
@@ -559,13 +607,13 @@ fun DashboardScreen(
                                 text = "${String.format(Locale.US, "%.1f", summary.savingsRatePercentage)}%",
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = Color(0xFF0F172A)
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                             )
                             Text(
-                                text = "Del total de ingresos",
+                                text = if (lang == com.example.util.AppLanguage.ENGLISH) "Of total income" else "Del total de ingresos",
                                 style = MaterialTheme.typography.bodySmall.copy(
-                                    color = Color(0xFF94A3B8),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontSize = 11.sp
                                 )
                             )
@@ -579,9 +627,9 @@ fun DashboardScreen(
                 item {
                     Card(
                         shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF3C7).copy(alpha = 0.6f)),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
                         border = CardDefaults.outlinedCardBorder().copy(
-                            brush = androidx.compose.ui.graphics.SolidColor(Color(0xFFFDE68A)),
+                            brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.outlineVariant),
                             width = 1.dp
                         ),
                         modifier = Modifier
@@ -598,7 +646,7 @@ fun DashboardScreen(
                                     modifier = Modifier
                                         .size(36.dp)
                                         .clip(RoundedCornerShape(10.dp))
-                                        .background(Color(0xFFFDE68A)),
+                                        .background(FinanceWarning.copy(alpha = 0.2f)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
@@ -611,21 +659,21 @@ fun DashboardScreen(
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Column {
                                     Text(
-                                        text = "${pendingBills.size} Pagos Próximos a Vencer",
+                                        text = "${pendingBills.size} ${if (lang == com.example.util.AppLanguage.ENGLISH) "Upcoming Bills Due" else "Pagos Próximos a Vencer"}",
                                         style = MaterialTheme.typography.bodyMedium.copy(
                                             fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF78350F)
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer
                                         )
                                     )
                                     Text(
-                                        text = "Total pendiente: ${formatCordobas(pendingBills.sumOf { it.amount })}",
+                                        text = "${if (lang == com.example.util.AppLanguage.ENGLISH) "Total Pending:" else "Total pendiente:"} ${formatCordobas(pendingBills.sumOf { it.amount })}",
                                         style = MaterialTheme.typography.bodySmall.copy(
-                                            color = Color(0xFF92400E)
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
                                         )
                                     )
                                 }
                             }
-                            Icon(Icons.Default.ChevronRight, contentDescription = "Ver", tint = Color(0xFF78350F))
+                            Icon(Icons.Default.ChevronRight, contentDescription = "Ver", tint = MaterialTheme.colorScheme.onSecondaryContainer)
                         }
                     }
                 }
@@ -634,8 +682,8 @@ fun DashboardScreen(
             // Movimientos Recientes Section
             item {
                 SectionHeader(
-                    title = "Movimientos Recientes",
-                    actionText = "Ver Todos",
+                    title = Localization.t("recent_movements_title", lang),
+                    actionText = Localization.t("see_all", lang),
                     onActionClick = onNavigateToTransactions
                 )
             }
@@ -644,9 +692,9 @@ fun DashboardScreen(
                 item {
                     Card(
                         shape = RoundedCornerShape(24.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         border = CardDefaults.outlinedCardBorder().copy(
-                            brush = androidx.compose.ui.graphics.SolidColor(Color(0xFFF1F5F9)),
+                            brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.outlineVariant),
                             width = 1.dp
                         ),
                         modifier = Modifier.fillMaxWidth()
@@ -658,8 +706,8 @@ fun DashboardScreen(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
-                                text = "Aún no tienes movimientos registrados",
-                                style = MaterialTheme.typography.bodyMedium.copy(color = Color(0xFF64748B))
+                                text = Localization.t("no_movements_yet", lang),
+                                style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                             )
                             Spacer(modifier = Modifier.height(10.dp))
                             Button(
@@ -667,18 +715,37 @@ fun DashboardScreen(
                                 shape = RoundedCornerShape(14.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = FinancePrimary)
                             ) {
-                                Text("Registrar Primer Movimiento")
+                                Text(if (lang == AppLanguage.SPANISH) "Registrar Primer Movimiento" else "Add First Transaction")
                             }
                         }
                     }
                 }
             } else {
                 items(transactions.take(5)) { tx ->
-                    SleekTransactionItemRow(tx = tx)
+                    SleekTransactionItemRow(tx = tx, lang = lang)
                 }
             }
 
             item { Spacer(modifier = Modifier.height(20.dp)) }
+        }
+
+        if (showExportPdfDialog) {
+            ExportPdfReportDialog(
+                viewModel = viewModel,
+                onDismiss = { showExportPdfDialog = false }
+            )
+        }
+
+        // Diálogo de Ajustes de la App (idioma, moneda oficial con conversión, modo oscuro/claro y cerrar sesión)
+        if (showSettingsDialog) {
+            AppSettingsDialog(
+                viewModel = viewModel,
+                onDismiss = { showSettingsDialog = false },
+                onLogout = {
+                    showSettingsDialog = false
+                    viewModel.logout()
+                }
+            )
         }
     }
 }
@@ -686,27 +753,27 @@ fun DashboardScreen(
 @Composable
 fun SleekTransactionItemRow(
     tx: TransactionEntity,
+    lang: com.example.util.AppLanguage = com.example.util.AppLanguage.SPANISH,
     modifier: Modifier = Modifier
 ) {
     val isIncome = tx.type == "INCOME"
     val dateStr = SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(tx.dateMillis))
 
-    // Emoji or tinted icon based on category
     val (iconBg, emoji) = when {
-        isIncome -> Color(0xFFD1FAE5) to "💰"
-        tx.category.contains("Aliment", ignoreCase = true) || tx.category.contains("Comida", ignoreCase = true) -> Color(0xFFFFEDD5) to "🍔"
-        tx.category.contains("Luz", ignoreCase = true) || tx.category.contains("Servicio", ignoreCase = true) || tx.category.contains("Agua", ignoreCase = true) -> Color(0xFFE0F2FE) to "💡"
-        tx.category.contains("Transp", ignoreCase = true) || tx.category.contains("Gas", ignoreCase = true) -> Color(0xFFEDE9FE) to "🚗"
-        tx.category.contains("Salud", ignoreCase = true) || tx.category.contains("Farm", ignoreCase = true) -> Color(0xFFFFE4E6) to "🏥"
-        tx.category.contains("Educ", ignoreCase = true) -> Color(0xFFFEF3C7) to "📚"
-        else -> Color(0xFFF1F5F9) to "🏷️"
+        isIncome -> Color(0xFF059669).copy(alpha = 0.15f) to "💰"
+        tx.category.contains("Aliment", ignoreCase = true) || tx.category.contains("Comida", ignoreCase = true) -> Color(0xFFF97316).copy(alpha = 0.15f) to "🍔"
+        tx.category.contains("Luz", ignoreCase = true) || tx.category.contains("Servicio", ignoreCase = true) || tx.category.contains("Agua", ignoreCase = true) -> Color(0xFF0288D1).copy(alpha = 0.15f) to "💡"
+        tx.category.contains("Transp", ignoreCase = true) || tx.category.contains("Gas", ignoreCase = true) -> Color(0xFF8B5CF6).copy(alpha = 0.15f) to "🚗"
+        tx.category.contains("Salud", ignoreCase = true) || tx.category.contains("Farm", ignoreCase = true) -> Color(0xFFE11D48).copy(alpha = 0.15f) to "🏥"
+        tx.category.contains("Educ", ignoreCase = true) -> Color(0xFFD97706).copy(alpha = 0.15f) to "📚"
+        else -> MaterialTheme.colorScheme.surfaceVariant to "🏷️"
     }
 
     Card(
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = CardDefaults.outlinedCardBorder().copy(
-            brush = androidx.compose.ui.graphics.SolidColor(Color(0xFFF1F5F9)),
+            brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.outlineVariant),
             width = 1.dp
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
@@ -737,12 +804,12 @@ fun SleekTransactionItemRow(
                         text = tx.title,
                         style = MaterialTheme.typography.bodyMedium.copy(
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF0F172A)
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = tx.category,
+                            text = CategoryDataHierarchy.getCategoryDisplayName(tx.category, lang),
                             style = MaterialTheme.typography.bodySmall.copy(
                                 fontWeight = FontWeight.SemiBold,
                                 color = FinancePrimary,
@@ -752,7 +819,7 @@ fun SleekTransactionItemRow(
                         Text(
                             text = " • $dateStr",
                             style = MaterialTheme.typography.bodySmall.copy(
-                                color = Color(0xFF94A3B8),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 11.sp
                             )
                         )

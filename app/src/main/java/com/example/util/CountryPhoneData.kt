@@ -393,24 +393,36 @@ object CountryPhoneData {
         )
     )
 
+    // Catálogo unificado y completo de divisas soportadas en la aplicación FinanzIQ.
+    // Garantiza que las monedas disponibles en el registro, ajustes y administración sean exactamente las mismas.
     val americanCurrencies = listOf(
         CurrencyOption("NIO", "C$", "Córdoba Nicaragüense", "Nicaraguan Córdoba", "🇳🇮"),
         CurrencyOption("USD", "$", "Dólar Estadounidense", "US Dollar", "🇺🇸"),
+        CurrencyOption("EUR", "€", "Euro", "Euro", "🇪🇺"),
         CurrencyOption("MXN", "$", "Peso Mexicano", "Mexican Peso", "🇲🇽"),
         CurrencyOption("COP", "$", "Peso Colombiano", "Colombian Peso", "🇨🇴"),
-        CurrencyOption("EUR", "€", "Euro", "Euro", "🇪🇺"),
+        CurrencyOption("CRC", "₡", "Colón Costarricense", "Costa Rican Colón", "🇨🇷"),
+        CurrencyOption("HNL", "L", "Lempira Hondureña", "Honduran Lempira", "🇭🇳"),
+        CurrencyOption("GTQ", "Q", "Quetzal Guatemalteco", "Guatemalan Quetzal", "🇬🇹"),
+        CurrencyOption("PAB", "B/.", "Balboa Panameño", "Panamanian Balboa", "🇵🇦"),
         CurrencyOption("CAD", "C$", "Dólar Canadiense", "Canadian Dollar", "🇨🇦"),
         CurrencyOption("BRL", "R$", "Real Brasileño", "Brazilian Real", "🇧🇷"),
         CurrencyOption("PEN", "S/", "Sol Peruano", "Peruvian Sol", "🇵🇪"),
         CurrencyOption("CLP", "$", "Peso Chileno", "Chilean Peso", "🇨🇱"),
         CurrencyOption("ARS", "$", "Peso Argentino", "Argentine Peso", "🇦🇷"),
-        CurrencyOption("CRC", "₡", "Colón Costarricense", "Costa Rican Colón", "🇨🇷"),
-        CurrencyOption("GTQ", "Q", "Quetzal Guatemalteco", "Guatemalan Quetzal", "🇬🇹"),
-        CurrencyOption("HNL", "L", "Lempira Hondureña", "Honduran Lempira", "🇭🇳"),
         CurrencyOption("DOP", "RD$", "Peso Dominicano", "Dominican Peso", "🇩🇴"),
         CurrencyOption("UYU", "$", "Peso Uruguayo", "Uruguayan Peso", "🇺🇾"),
         CurrencyOption("BOB", "Bs", "Boliviano", "Bolivian Boliviano", "🇧🇴"),
-        CurrencyOption("PYG", "₲", "Guaraní Paraguayo", "Paraguayan Guaraní", "🇵🇾")
+        CurrencyOption("PYG", "₲", "Guaraní Paraguayo", "Paraguayan Guaraní", "🇵🇾"),
+        CurrencyOption("BZD", "BZ$", "Dólar Beliceño", "Belize Dollar", "🇧🇿"),
+        CurrencyOption("HTG", "G", "Gourde Haitiano", "Haitian Gourde", "🇭🇹"),
+        CurrencyOption("TTD", "TT$", "Dólar de Trinidad y Tobago", "Trinidad and Tobago Dollar", "🇹🇹"),
+        CurrencyOption("BSD", "B$", "Dólar Bahameño", "Bahamian Dollar", "🇧🇸"),
+        CurrencyOption("BBD", "Bds$", "Dólar de Barbados", "Barbadian Dollar", "🇧🇧"),
+        CurrencyOption("AWG", "Afl.", "Florín Arubeño", "Aruban Florin", "🇦🇼"),
+        CurrencyOption("ANG", "NAƒ", "Florín Antillano", "Netherlands Antillean Guilder", "🇨🇼"),
+        CurrencyOption("GYD", "G$", "Dólar Guyanés", "Guyanese Dollar", "🇬🇾"),
+        CurrencyOption("SRD", "Sr$", "Dólar Surinamés", "Surinamese Dollar", "🇸🇷")
     )
 
     fun validatePhone(country: CountryPhoneConfig, phone: String): Pair<Boolean, String?> {

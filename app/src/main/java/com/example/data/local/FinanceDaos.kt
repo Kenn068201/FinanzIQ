@@ -13,6 +13,12 @@ interface UserDao {
     @Query("SELECT * FROM users WHERE email = :email LIMIT 1")
     suspend fun getUserByEmail(email: String): UserEntity?
 
+    @Query("SELECT * FROM users WHERE username = :username LIMIT 1")
+    suspend fun getUserByUsername(username: String): UserEntity?
+
+    @Query("SELECT * FROM users WHERE email = :identifier OR username = :identifier LIMIT 1")
+    suspend fun getUserByIdentifier(identifier: String): UserEntity?
+
     @Query("SELECT * FROM users WHERE phone = :phone LIMIT 1")
     suspend fun getUserByPhone(phone: String): UserEntity?
 
@@ -55,8 +61,8 @@ interface TransactionDao {
     @Update
     suspend fun updateTransaction(transaction: TransactionEntity)
 
-    @Delete
-    suspend fun deleteTransaction(transaction: TransactionEntity)
+    @Query("SELECT * FROM transactions WHERE id = :id LIMIT 1")
+    suspend fun getTransactionById(id: Long): TransactionEntity?
 
     @Query("DELETE FROM transactions WHERE id = :id")
     suspend fun deleteById(id: Long)
@@ -165,4 +171,118 @@ interface FinancialAccountDao {
     @Query("UPDATE financial_accounts SET isActive = :isActive WHERE id = :id")
     suspend fun setAccountActiveStatus(id: Long, isActive: Boolean)
 }
+
+/**
+ * DAO para la administración del catálogo de Instituciones Financieras (Bancos y Billeteras).
+ * Permite al administrador consultar, agregar, desactivar con motivo, reactivar y eliminar entidades.
+ * Proporciona Flows reactivos para que los cambios se reflejen de inmediato tanto en la interfaz de
+ * administración como en la interfaz de vinculación de cuentas del usuario final.
+ */
+@Dao
+interface FinancialInstitutionDao {
+    @Query("SELECT * FROM financial_institutions ORDER BY type ASC, fullName ASC")
+    fun getAllInstitutions(): Flow<List<FinancialInstitutionEntity>>
+
+    @Query("SELECT * FROM financial_institutions WHERE isActive = 1 ORDER BY type ASC, fullName ASC")
+    fun getActiveInstitutions(): Flow<List<FinancialInstitutionEntity>>
+
+    @Query("SELECT * FROM financial_institutions WHERE id = :id LIMIT 1")
+    suspend fun getInstitutionById(id: Long): FinancialInstitutionEntity?
+
+    @Query("SELECT * FROM financial_institutions WHERE fullName = :fullName LIMIT 1")
+    suspend fun getInstitutionByName(fullName: String): FinancialInstitutionEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertInstitution(institution: FinancialInstitutionEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertInstitutions(institutions: List<FinancialInstitutionEntity>)
+
+    @Update
+    suspend fun updateInstitution(institution: FinancialInstitutionEntity)
+
+    @Delete
+    suspend fun deleteInstitution(institution: FinancialInstitutionEntity)
+}
+
+/**
+ * DAO para la persistencia de las Directivas de Seguridad Globales de la aplicación.
+ * Garantiza que las modificaciones realizadas por el administrador persistan en la base de datos
+ * y se propaguen mediante Flow a todos los flujos de validación del sistema (login, registro, contraseñas).
+ */
+@Dao
+interface SecurityPolicyDao {
+    @Query("SELECT * FROM security_policies WHERE id = 1 LIMIT 1")
+    fun getSecurityPolicy(): Flow<SecurityPolicyEntity?>
+
+    @Query("SELECT * FROM security_policies WHERE id = 1 LIMIT 1")
+    suspend fun getSecurityPolicyDirect(): SecurityPolicyEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertOrUpdatePolicy(policy: SecurityPolicyEntity)
+}
+
+/**
+ * DAO para la gestión de la Bitácora de Auditoría del Sistema.
+ * Permite registrar y consultar en tiempo real eventos como inicios de sesión (exitosos y fallidos),
+ * cambios en directivas de seguridad, modificaciones en proveedores y cambios de estado en usuarios.
+ */
+@Dao
+interface AuditLogDao {
+    @Query("SELECT * FROM audit_logs ORDER BY timestamp DESC")
+    fun getAllLogs(): Flow<List<AuditLogEntity>>
+
+    @Query("SELECT * FROM audit_logs WHERE eventType = :eventType ORDER BY timestamp DESC")
+    fun getLogsByType(eventType: String): Flow<List<AuditLogEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertLog(log: AuditLogEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertLogs(logs: List<AuditLogEntity>)
+
+    @Query("DELETE FROM audit_logs")
+    suspend fun clearLogs()
+}
+
+/**
+ * DAO para el Control de Versiones de la Aplicación.
+ * Permite al administrador publicar nuevas versiones, consultar el histórico de versiones
+ * y obtener la versión activa más reciente para sincronización con usuarios.
+ */
+@Dao
+interface AppVersionDao {
+    @Query("SELECT * FROM app_versions ORDER BY releaseDate DESC")
+    fun getAllVersions(): Flow<List<AppVersionEntity>>
+
+    @Query("SELECT * FROM app_versions ORDER BY releaseDate DESC LIMIT 1")
+    suspend fun getLatestVersion(): AppVersionEntity?
+
+    @Query("SELECT * FROM app_versions ORDER BY releaseDate DESC LIMIT 1")
+    fun getLatestVersionFlow(): Flow<AppVersionEntity?>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertVersion(version: AppVersionEntity): Long
+}
+
+/**
+ * DAO para el Monitor de APIs Integradas.
+ * Almacena métricas de latencia, código de estado y éxito/fallo para cálculo de tasas de error y uptime.
+ */
+@Dao
+interface ApiMetricDao {
+    @Query("SELECT * FROM api_metrics ORDER BY timestamp DESC LIMIT 200")
+    fun getRecentMetrics(): Flow<List<ApiMetricEntity>>
+
+    @Query("SELECT * FROM api_metrics WHERE timestamp >= :sinceTimestamp ORDER BY timestamp DESC")
+    suspend fun getMetricsSince(sinceTimestamp: Long): List<ApiMetricEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMetric(metric: ApiMetricEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMetrics(metrics: List<ApiMetricEntity>)
+}
+
+
 

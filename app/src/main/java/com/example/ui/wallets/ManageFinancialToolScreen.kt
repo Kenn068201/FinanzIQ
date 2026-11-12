@@ -1,6 +1,7 @@
 package com.example.ui.wallets
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -82,31 +83,39 @@ fun ManageFinancialToolScreen(
     val currentUser by viewModel.currentUser.collectAsState()
     val registeredAccounts by viewModel.financialAccounts.collectAsState()
     val currency by viewModel.selectedCurrency.collectAsState()
+    val allInstitutions by viewModel.financialInstitutions.collectAsState()
 
-    // Bancos reconocidos de Nicaragua
-    val nicaraguaBanks = listOf(
-        "BANPRO Grupo Promerica",
-        "BAC Credomatic Nicaragua",
-        "Banco LAFISE BANCENTRO",
-        "Banco de Finanzas (BDF)",
-        "Banco FICOHSA Nicaragua",
-        "Banco AVANZ"
-    )
+    // Bancos activos disponibles del catálogo gestionado por el Administrador
+    val activeBanks = allInstitutions.filter { it.type == "BANCO" && it.isActive }
 
-    // Proveedores de billeteras digitales
-    val walletProviders = listOf(
-        "Billetera Móvil Banpro",
-        "Billetera Móvil LAFISE",
-        "Kash BAC Nicaragua",
-        "Billetera Móvil BDF",
-        "Billetera Móvil Ficohsa"
-    )
+    // Billeteras activas disponibles del catálogo gestionado por el Administrador
+    val activeWallets = allInstitutions.filter { it.type == "BILLETERA" && it.isActive }
+
+    // Entidades actualmente deshabilitadas por el Administrador
+    val disabledInstitutions = allInstitutions.filter { !it.isActive }
+
+    // Función auxiliar para normalizar e identificar la marca del banco emisor
+    fun normalizeBankBrand(name: String): String {
+        val upper = name.uppercase(java.util.Locale.ROOT)
+        return when {
+            upper.contains("BANPRO") -> "BANPRO"
+            upper.contains("BAC") || upper.contains("KASH") -> "BAC"
+            upper.contains("LAFISE") -> "LAFISE"
+            upper.contains("BDF") -> "BDF"
+            upper.contains("FICOHSA") -> "FICOHSA"
+            upper.contains("AVANZ") -> "AVANZ"
+            else -> upper.trim()
+        }
+    }
 
     // Tipo de herramienta principal: "CUENTA" o "BILLETERA"
     var selectedToolType by remember { mutableStateOf("CUENTA") }
 
     // Campos para Cuenta Bancaria
-    var selectedBank by remember { mutableStateOf(nicaraguaBanks.first()) }
+    var selectedBank by remember { mutableStateOf("") }
+    if (selectedBank.isEmpty() && activeBanks.isNotEmpty()) {
+        selectedBank = activeBanks.first().fullName
+    }
     var showBankDropdown by remember { mutableStateOf(false) }
 
     var accountType by remember { mutableStateOf("DEBITO") } // "DEBITO" o "CREDITO"
@@ -117,7 +126,10 @@ fun ManageFinancialToolScreen(
     var creditLimitStr by remember { mutableStateOf("15000") }
 
     // Campos para Billetera Digital
-    var selectedWalletProvider by remember { mutableStateOf(walletProviders.first()) }
+    var selectedWalletProvider by remember { mutableStateOf("") }
+    if (selectedWalletProvider.isEmpty() && activeWallets.isNotEmpty()) {
+        selectedWalletProvider = activeWallets.first().fullName
+    }
     var showWalletDropdown by remember { mutableStateOf(false) }
 
     var associatedPhone by remember { mutableStateOf(currentUser?.phone ?: "") }
@@ -131,6 +143,7 @@ fun ManageFinancialToolScreen(
 
     var errorMessage by remember { mutableStateOf<String?>(null) }
     val scrollState = rememberScrollState()
+
 
     Scaffold(
         topBar = {
@@ -179,11 +192,50 @@ fun ManageFinancialToolScreen(
                 ErrorWarningBox(message = errorMessage!!)
             }
 
+            // Aviso sobre Instituciones Financieras deshabilitadas por el Administrador
+            if (disabledInstitutions.isNotEmpty()) {
+                Card(
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    modifier = Modifier.fillMaxWidth().testTag("deactivated_institutions_warning_box")
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Link,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Aviso: Entidades Deshabilitadas",
+                                style = MaterialTheme.typography.titleSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "No se pueden vincular nuevas cuentas a las siguientes entidades por disposición administrativa:\n" +
+                                disabledInstitutions.joinToString("\n") { "• ${it.fullName}: ${it.statusReason}" },
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                lineHeight = 18.sp
+                            )
+                        )
+                    }
+                }
+            }
+
             // Selector del Tipo de Herramienta Financiera
             Text(
                 text = Localization.t("tool_type_label", lang),
                 style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
             )
+
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -280,16 +332,24 @@ fun ManageFinancialToolScreen(
                                 expanded = showBankDropdown,
                                 onDismissRequest = { showBankDropdown = false }
                             ) {
-                                nicaraguaBanks.forEach { bank ->
+                                if (activeBanks.isEmpty()) {
                                     DropdownMenuItem(
-                                        text = { Text(bank) },
-                                        onClick = {
-                                            selectedBank = bank
-                                            showBankDropdown = false
-                                        }
+                                        text = { Text("No hay bancos activos disponibles") },
+                                        onClick = { showBankDropdown = false }
                                     )
+                                } else {
+                                    activeBanks.forEach { bank ->
+                                        DropdownMenuItem(
+                                            text = { Text("${bank.fullName}${if (bank.abbreviation.isNotBlank()) " (${bank.abbreviation})" else ""}") },
+                                            onClick = {
+                                                selectedBank = bank.fullName
+                                                showBankDropdown = false
+                                            }
+                                        )
+                                    }
                                 }
                             }
+
                         }
 
                         // Tipo de Cuenta: Débito o Crédito
@@ -458,16 +518,24 @@ fun ManageFinancialToolScreen(
                                 expanded = showWalletDropdown,
                                 onDismissRequest = { showWalletDropdown = false }
                             ) {
-                                walletProviders.forEach { provider ->
+                                if (activeWallets.isEmpty()) {
                                     DropdownMenuItem(
-                                        text = { Text(provider) },
-                                        onClick = {
-                                            selectedWalletProvider = provider
-                                            showWalletDropdown = false
-                                        }
+                                        text = { Text("No hay billeteras activas disponibles") },
+                                        onClick = { showWalletDropdown = false }
                                     )
+                                } else {
+                                    activeWallets.forEach { wallet ->
+                                        DropdownMenuItem(
+                                            text = { Text("${wallet.fullName}${if (wallet.supportedBankBrands.isNotBlank()) " • Vincula con ${wallet.supportedBankBrands}" else ""}") },
+                                            onClick = {
+                                                selectedWalletProvider = wallet.fullName
+                                                showWalletDropdown = false
+                                            }
+                                        )
+                                    }
                                 }
                             }
+
                         }
 
                         // Número telefónico asociado
@@ -554,6 +622,35 @@ fun ManageFinancialToolScreen(
             Button(
                 onClick = {
                     errorMessage = null
+
+                    // Validación obligatoria para cuentas y billeteras digitales:
+                    if (selectedToolType == "CUENTA") {
+                        val bankEntity = allInstitutions.find { it.fullName == selectedBank }
+                        if (bankEntity != null && !bankEntity.isActive) {
+                            errorMessage = "El banco seleccionado (${bankEntity.fullName}) ha sido deshabilitado por el administrador y no admite nuevas vinculaciones. Motivo: ${bankEntity.statusReason}"
+                            return@Button
+                        }
+                    } else {
+                        val walletEntity = allInstitutions.find { it.fullName == selectedWalletProvider }
+                        if (walletEntity != null && !walletEntity.isActive) {
+                            errorMessage = "La billetera seleccionada (${walletEntity.fullName}) ha sido deshabilitada por el administrador y no admite nuevas vinculaciones. Motivo: ${walletEntity.statusReason}"
+                            return@Button
+                        }
+                        if (selectedLinkedAccount == null) {
+                            errorMessage = Localization.t("error_wallet_linked_missing", lang)
+                            return@Button
+                        }
+                        val targetBrand = walletEntity?.supportedBankBrands?.ifBlank { null }
+                            ?: normalizeBankBrand(selectedWalletProvider)
+                        val walletBrand = normalizeBankBrand(targetBrand)
+                        val linkedAccountBrand = normalizeBankBrand(selectedLinkedAccount!!.bankName)
+                        if (!linkedAccountBrand.contains(walletBrand, ignoreCase = true) && !walletBrand.contains(linkedAccountBrand, ignoreCase = true)) {
+                            errorMessage = "Para vincular esta billetera (${selectedWalletProvider}) debe seleccionar una cuenta bancaria perteneciente a $targetBrand."
+                            return@Button
+                        }
+                    }
+
+
                     val initBal = if (selectedToolType == "CUENTA") {
                         initialBalanceStr.toDoubleOrNull() ?: -1.0
                     } else {
