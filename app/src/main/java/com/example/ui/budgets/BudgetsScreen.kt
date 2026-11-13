@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.util.AppLanguage
 import com.example.data.local.BudgetEntity
+import com.example.data.local.CategoryEntity
 import com.example.data.model.CategoryDataHierarchy
 import com.example.data.model.CategoryGroupType
 import com.example.ui.FinanceViewModel
@@ -91,6 +92,7 @@ fun BudgetsScreen(
     val currency by viewModel.selectedCurrency.collectAsState()
     val budgets by viewModel.budgets.collectAsState()
     val transactions by viewModel.allTransactions.collectAsState()
+    val categories by viewModel.categories.collectAsState()
 
     var showAddDialog by remember { mutableStateOf(false) }
     var budgetToEdit by remember { mutableStateOf<BudgetEntity?>(null) }
@@ -408,6 +410,7 @@ fun BudgetsScreen(
             AddBudgetDialog(
                 lang = lang,
                 currencySymbol = currency.symbol,
+                categories = categories,
                 onDismiss = { showAddDialog = false },
                 onConfirm = { cat, limit ->
                     viewModel.setBudget(cat, limit)
@@ -605,18 +608,18 @@ fun BudgetProgressCard(
 fun AddBudgetDialog(
     lang: com.example.util.AppLanguage,
     currencySymbol: String = "C$",
+    categories: List<CategoryEntity> = emptyList(),
     onDismiss: () -> Unit,
     onConfirm: (category: String, limit: Double) -> Unit
 ) {
     var selectedGroupType by remember { mutableStateOf(CategoryGroupType.FIXED_EXPENSE) }
-    val currentGroupCategories = when (selectedGroupType) {
-        CategoryGroupType.FIXED_EXPENSE -> CategoryDataHierarchy.fixedExpenseGroup.categories
-        CategoryGroupType.VARIABLE_EXPENSE -> CategoryDataHierarchy.variableExpenseGroup.categories
-        CategoryGroupType.DEBT_PAYMENT -> CategoryDataHierarchy.debtPaymentGroup.categories
-        else -> CategoryDataHierarchy.fixedExpenseGroup.categories
+    val currentGroupCategories = remember(selectedGroupType, categories) {
+        CategoryDataHierarchy.getCategoriesForGroup(selectedGroupType, categories)
     }
 
-    var selectedCategory by remember { mutableStateOf(currentGroupCategories.first().nameEs) }
+    var selectedCategory by remember(currentGroupCategories) {
+        mutableStateOf(currentGroupCategories.firstOrNull()?.nameEs ?: "")
+    }
     var limitStr by remember { mutableStateOf("") }
     var errorMsg by remember { mutableStateOf<String?>(null) }
 
@@ -633,8 +636,8 @@ fun AddBudgetDialog(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                if (errorMsg != null) {
-                    ErrorWarningBox(message = errorMsg!!)
+                errorMsg?.let { msg ->
+                    ErrorWarningBox(message = msg)
                 }
 
                 Text(
@@ -652,11 +655,12 @@ fun AddBudgetDialog(
                             selected = selectedGroupType == CategoryGroupType.FIXED_EXPENSE,
                             onClick = {
                                 selectedGroupType = CategoryGroupType.FIXED_EXPENSE
-                                selectedCategory = CategoryDataHierarchy.fixedExpenseGroup.categories.first().nameEs
+                                val newCats = CategoryDataHierarchy.getCategoriesForGroup(CategoryGroupType.FIXED_EXPENSE, categories)
+                                selectedCategory = newCats.firstOrNull()?.nameEs ?: ""
                             },
                             label = {
                                 Text(
-                                    text = if (lang == AppLanguage.SPANISH) "🔒 Fijos" else "🔒 Needs",
+                                    text = if (lang == AppLanguage.SPANISH) "🔒 Fijos" else "🔒 Fixed",
                                     maxLines = 1,
                                     softWrap = false,
                                     letterSpacing = (-0.2).sp
@@ -669,7 +673,8 @@ fun AddBudgetDialog(
                             selected = selectedGroupType == CategoryGroupType.VARIABLE_EXPENSE,
                             onClick = {
                                 selectedGroupType = CategoryGroupType.VARIABLE_EXPENSE
-                                selectedCategory = CategoryDataHierarchy.variableExpenseGroup.categories.first().nameEs
+                                val newCats = CategoryDataHierarchy.getCategoriesForGroup(CategoryGroupType.VARIABLE_EXPENSE, categories)
+                                selectedCategory = newCats.firstOrNull()?.nameEs ?: ""
                             },
                             label = {
                                 Text(
@@ -686,7 +691,8 @@ fun AddBudgetDialog(
                             selected = selectedGroupType == CategoryGroupType.DEBT_PAYMENT,
                             onClick = {
                                 selectedGroupType = CategoryGroupType.DEBT_PAYMENT
-                                selectedCategory = CategoryDataHierarchy.debtPaymentGroup.categories.first().nameEs
+                                val newCats = CategoryDataHierarchy.getCategoriesForGroup(CategoryGroupType.DEBT_PAYMENT, categories)
+                                selectedCategory = newCats.firstOrNull()?.nameEs ?: ""
                             },
                             label = {
                                 Text(
@@ -795,8 +801,8 @@ fun EditBudgetDialog(
                     )
                 )
 
-                if (errorMsg != null) {
-                    ErrorWarningBox(message = errorMsg!!)
+                errorMsg?.let { msg ->
+                    ErrorWarningBox(message = msg)
                 }
 
                 OutlinedTextField(

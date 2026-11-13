@@ -40,29 +40,32 @@ import com.example.data.local.AppVersionEntity
 import com.example.ui.theme.FinanceError
 import com.example.ui.theme.FinancePrimary
 import com.example.ui.theme.FinanceSuccess
+import com.example.util.AppLanguage
 
 /**
- * Diálogo de Notificación y Forzado de Actualizaciones del Sistema.
+ * Diálogo de Notificación y Forzado de Actualizaciones del Sistema en la Interfaz de Usuario.
  * 
  * Qué hace:
- * Evalúa si la versión instalada en el cliente es anterior a la última versión publicada
- * por el Administrador en la base de datos.
+ * Despliega un diálogo emergente modal cuando la versión instalada en la Interfaz de Usuario
+ * difiere de la versión más reciente publicada por el Administrador.
+ * Si la actualización es obligatoria, bloquea el cierre del diálogo hasta que el usuario pulse
+ * "Actualizar Ahora (Obligatorio)".
  * 
  * Por qué se implementa de esta forma:
- * Satisface textualmente los requisitos del Control de Versiones:
- * 1. Si la versión está marcada como OBLIGATORIA (isMandatory = true):
- *    El diálogo no se puede descartar (onDismissRequest vacío), y muestra el aviso explícito:
- *    "su versión es obsoleta y debe actualizar obligatoriamente la app".
- * 2. Si la versión está marcada como OPCIONAL:
- *    Permite al usuario la opción de "Seguir usando la app sin actualizar" o actualizar inmediatamente.
+ * Sincroniza textualmente y con exactitud los mensajes entre la Interfaz de Administrador y la Interfaz de Usuario.
+ * Muestra el aviso idéntico registrado en la administración:
+ * "Actualización Obligatoria: Los usuarios con versiones anteriores no podrán usar la app hasta actualizar."
+ * asegurando coherencia total en la experiencia del usuario y soporte en español e inglés.
  * 
  * Cómo se relaciona con el resto del código:
- * Se invoca en la raíz de la interfaz de la aplicación (MainAppNavigation) cuando el usuario inicia sesión.
+ * Se invoca desde AuthenticatedAppScaffold en MainAppNavigation. Al confirmar la actualización,
+ * ejecuta clientUpdateAppVersion en FinanceViewModel para persistir la versión aceptada por el usuario.
  */
 @Composable
 fun AppUpdatePromptDialog(
     latestVersion: AppVersionEntity?,
     clientAppVersion: String,
+    currentLanguage: AppLanguage = AppLanguage.SPANISH,
     onUpdateApp: () -> Unit,
     onContinueWithoutUpdate: () -> Unit
 ) {
@@ -71,7 +74,53 @@ fun AppUpdatePromptDialog(
     }
 
     val isMandatory = latestVersion.isMandatory
+    val isSpanish = currentLanguage == AppLanguage.SPANISH
     val scrollState = rememberScrollState()
+
+    // Textos sincronizados exactamente con la Interfaz de Administrador
+    val titleText = if (isMandatory) {
+        if (isSpanish) "Actualización OBLIGATORIA" else "MANDATORY Update"
+    } else {
+        if (isSpanish) "Actualización OPCIONAL" else "OPTIONAL Update"
+    }
+
+    val subtitleText = if (isSpanish) {
+        "Versión instalada: v$clientAppVersion • Nueva versión: v${latestVersion.versionNumber}"
+    } else {
+        "Installed version: v$clientAppVersion • New version: v${latestVersion.versionNumber}"
+    }
+
+    val warningBannerText = if (isMandatory) {
+        if (isSpanish) {
+            "Actualización Obligatoria: Los usuarios con versiones anteriores no podrán usar la app hasta actualizar. Su versión actual (v$clientAppVersion) es obsoleta y debe actualizar obligatoriamente la aplicación a la versión v${latestVersion.versionNumber}."
+        } else {
+            "Mandatory Update: Users with previous versions cannot use the app until updating. Your current version (v$clientAppVersion) is obsolete and you must update the application to version v${latestVersion.versionNumber}."
+        }
+    } else {
+        if (isSpanish) {
+            "Actualización Opcional: Hay mejoras y optimizaciones disponibles para FinanzIQ. Puedes actualizar ahora o seguir usando la app sin actualizar."
+        } else {
+            "Optional Update: Enhancements available for FinanzIQ. You can update now or continue using the app without updating."
+        }
+    }
+
+    val changelogTitle = if (isSpanish) {
+        "Notas de Cambio / Novedades (v${latestVersion.versionNumber}):"
+    } else {
+        "Changelog / Release Notes (v${latestVersion.versionNumber}):"
+    }
+
+    val confirmButtonText = if (isMandatory) {
+        if (isSpanish) "Actualizar Ahora (Obligatorio)" else "Update Now (Mandatory)"
+    } else {
+        if (isSpanish) "Actualizar Ahora" else "Update Now"
+    }
+
+    val dismissButtonText = if (isSpanish) {
+        "Seguir usando la app sin actualizar"
+    } else {
+        "Continue using the app without updating"
+    }
 
     AlertDialog(
         onDismissRequest = {
@@ -98,14 +147,14 @@ fun AppUpdatePromptDialog(
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
                     Text(
-                        text = if (isMandatory) "Actualización Obligatoria" else "Nueva Versión Disponible",
+                        text = titleText,
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                     )
                     Text(
-                        text = "Versión instalada: v$clientAppVersion • Nueva: v${latestVersion.versionNumber}",
+                        text = subtitleText,
                         style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                     )
                 }
@@ -118,40 +167,26 @@ fun AppUpdatePromptDialog(
                     .verticalScroll(scrollState),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                if (isMandatory) {
-                    Card(
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = "su versión es obsoleta y debe actualizar obligatoriamente la app",
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                                fontWeight = FontWeight.Bold
-                            ),
-                            modifier = Modifier.padding(12.dp)
-                        )
-                    }
-                } else {
-                    Card(
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = "Hay mejoras y optimizaciones disponibles para FinanzIQ. Puedes actualizar ahora o seguir usando la aplicación.",
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                fontWeight = FontWeight.Medium
-                            ),
-                            modifier = Modifier.padding(12.dp)
-                        )
-                    }
+                Card(
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isMandatory) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = warningBannerText,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = if (isMandatory) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSecondaryContainer,
+                            fontWeight = FontWeight.SemiBold,
+                            lineHeight = 18.sp
+                        ),
+                        modifier = Modifier.padding(12.dp)
+                    )
                 }
 
                 Text(
-                    text = "Notas de la versión v${latestVersion.versionNumber}:",
+                    text = changelogTitle,
                     style = MaterialTheme.typography.labelMedium.copy(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -185,7 +220,7 @@ fun AppUpdatePromptDialog(
                 modifier = Modifier.testTag("btn_confirm_app_update")
             ) {
                 Text(
-                    text = if (isMandatory) "Actualizar Ahora (Obligatorio)" else "Actualizar Ahora",
+                    text = confirmButtonText,
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -198,7 +233,7 @@ fun AppUpdatePromptDialog(
                     modifier = Modifier.testTag("btn_skip_optional_update")
                 ) {
                     Text(
-                        text = "Seguir usando la app sin actualizar",
+                        text = dismissButtonText,
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurface

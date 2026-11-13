@@ -801,7 +801,7 @@ fun SleekTransactionItemRow(
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
                     Text(
-                        text = tx.title,
+                        text = CategoryDataHierarchy.getTransactionTitleDisplayName(tx.title, lang),
                         style = MaterialTheme.typography.bodyMedium.copy(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface

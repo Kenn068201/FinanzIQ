@@ -44,6 +44,7 @@ import com.example.data.model.SubcategoryItem
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import com.example.data.local.CategoryEntity
 import com.example.data.local.FinancialAccountEntity
 import com.example.ui.reports.ExportPdfReportDialog
 import com.example.util.AppLanguage
@@ -409,6 +410,7 @@ fun TransactionsScreen(
             AddTransactionDialog(
                 initialType = dialogInitialType,
                 categories = categories.map { it.name }.distinct(),
+                rawCategories = categories,
                 accounts = financialAccounts,
                 currencySymbol = currency.symbol,
                 lang = lang,
@@ -503,7 +505,7 @@ fun TransactionCardDetail(
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text(
-                            text = tx.title,
+                            text = CategoryDataHierarchy.getTransactionTitleDisplayName(tx.title, lang),
                             style = MaterialTheme.typography.titleSmall.copy(
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -623,6 +625,7 @@ fun TransactionCardDetail(
 fun AddTransactionDialog(
     initialType: String,
     categories: List<String>,
+    rawCategories: List<CategoryEntity> = emptyList(),
     accounts: List<FinancialAccountEntity> = emptyList(),
     currencySymbol: String = "C$",
     lang: AppLanguage = AppLanguage.SPANISH,
@@ -665,29 +668,29 @@ fun AddTransactionDialog(
     var passiveFrequency by remember { mutableStateOf("Mensual") }
     var payoutDate by remember { mutableStateOf("Día 15 de cada mes") }
     var selectedPassiveIndex by remember { mutableStateOf(0) }
-    val passiveCategories = CategoryDataHierarchy.passiveIncomeCategories
-    val selectedPassiveCategory = passiveCategories[selectedPassiveIndex]
+    val passiveCategories = remember(rawCategories) { CategoryDataHierarchy.getPassiveIncomeCategories(rawCategories) }
+    val safePassiveIndex = selectedPassiveIndex.coerceIn(0, (passiveCategories.size - 1).coerceAtLeast(0))
+    val selectedPassiveCategory = passiveCategories.getOrNull(safePassiveIndex) ?: passiveCategories.firstOrNull()
 
     // Active Income State
     var selectedActiveIndex by remember { mutableStateOf(0) }
-    val activeCategories = CategoryDataHierarchy.activeIncomeCategories
+    val activeCategories = remember(rawCategories) { CategoryDataHierarchy.getActiveIncomeCategories(rawCategories) }
+    val safeActiveIndex = selectedActiveIndex.coerceIn(0, (activeCategories.size - 1).coerceAtLeast(0))
 
-    // Expense State (Hierarchical)
+    // Expense State (Hierarchical con integración en tiempo real de categorías creadas por Admin)
     var selectedGroupType by remember { mutableStateOf(CategoryGroupType.FIXED_EXPENSE) }
-    val currentGroupCategories = when (selectedGroupType) {
-        CategoryGroupType.FIXED_EXPENSE -> CategoryDataHierarchy.fixedExpenseGroup.categories
-        CategoryGroupType.VARIABLE_EXPENSE -> CategoryDataHierarchy.variableExpenseGroup.categories
-        CategoryGroupType.DEBT_PAYMENT -> CategoryDataHierarchy.debtPaymentGroup.categories
-        else -> CategoryDataHierarchy.fixedExpenseGroup.categories
+    val currentGroupCategories = remember(selectedGroupType, rawCategories) {
+        CategoryDataHierarchy.getCategoriesForGroup(selectedGroupType, rawCategories)
     }
     var selectedCategoryIndex by remember(selectedGroupType) { mutableStateOf(0) }
     val safeCategoryIndex = selectedCategoryIndex.coerceIn(0, (currentGroupCategories.size - 1).coerceAtLeast(0))
-    val selectedCategoryItem = currentGroupCategories.getOrNull(safeCategoryIndex) ?: currentGroupCategories.first()
+    val selectedCategoryItem = currentGroupCategories.getOrNull(safeCategoryIndex) ?: currentGroupCategories.firstOrNull()
 
     var selectedSubcategoryIndex by remember(selectedCategoryItem) { mutableStateOf(0) }
-    val hasSubcategories = selectedCategoryItem.subcategories.isNotEmpty()
-    val safeSubcategoryIndex = selectedSubcategoryIndex.coerceIn(0, (selectedCategoryItem.subcategories.size - 1).coerceAtLeast(0))
-    val selectedSubcategoryItem = if (hasSubcategories) selectedCategoryItem.subcategories[safeSubcategoryIndex] else null
+    val subcategoriesList = selectedCategoryItem?.subcategories ?: emptyList()
+    val hasSubcategories = subcategoriesList.isNotEmpty()
+    val safeSubcategoryIndex = selectedSubcategoryIndex.coerceIn(0, (subcategoriesList.size - 1).coerceAtLeast(0))
+    val selectedSubcategoryItem = subcategoriesList.getOrNull(safeSubcategoryIndex)
 
     val scrollState = rememberScrollState()
 
@@ -740,14 +743,14 @@ fun AddTransactionDialog(
                     )
                 }
 
-                if (errorMessage != null) {
-                    ErrorWarningBox(message = errorMessage!!)
+                errorMessage?.let { msg ->
+                    ErrorWarningBox(message = msg)
                 }
 
                 // If INCOME: toggle Active vs Passive
                 if (type == "INCOME") {
                     Text(
-                        text = "Tipo de Ingreso:",
+                        text = if (lang == AppLanguage.SPANISH) "Tipo de Ingreso:" else "Income Type:",
                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     )
                     Row(
@@ -779,7 +782,7 @@ fun AddTransactionDialog(
                     // Passive Income specific details
                     if (incomeSubType == "PASSIVE") {
                         Text(
-                            text = "Categoría de Ingreso Pasivo:",
+                            text = if (lang == AppLanguage.SPANISH) "Categoría de Ingreso Pasivo:" else "Passive Income Category:",
                             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                         )
                         // Categorías de Ingreso Pasivo en LazyRow deslizable
@@ -822,16 +825,18 @@ fun AddTransactionDialog(
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Column {
-                                    Text(
-                                        text = "${selectedPassiveCategory.iconEmoji} ¿Qué es ${if (lang == AppLanguage.ENGLISH) selectedPassiveCategory.titleEn else selectedPassiveCategory.titleEs}?",
-                                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = if (lang == AppLanguage.ENGLISH) selectedPassiveCategory.explanationEn else selectedPassiveCategory.explanationEs,
-                                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSecondaryContainer, lineHeight = 18.sp)
-                                    )
+                                selectedPassiveCategory?.let { passiveCat ->
+                                    Column {
+                                        Text(
+                                            text = "${passiveCat.iconEmoji} ${if (lang == AppLanguage.ENGLISH) "What is ${passiveCat.titleEn}?" else "¿Qué es ${passiveCat.titleEs}?"}",
+                                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = if (lang == AppLanguage.ENGLISH) passiveCat.explanationEn else passiveCat.explanationEs,
+                                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSecondaryContainer, lineHeight = 18.sp)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -842,7 +847,11 @@ fun AddTransactionDialog(
                             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                         )
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            items(listOf("Mensual", "Trimestral", "Semestral", "Anual", "Esporádico")) { freq ->
+                            val frequencies = if (lang == AppLanguage.SPANISH)
+                                listOf("Mensual", "Trimestral", "Semestral", "Anual", "Esporádico")
+                            else
+                                listOf("Monthly", "Quarterly", "Semi-Annual", "Annual", "Sporadic")
+                            items(frequencies) { freq ->
                                 FilterChip(
                                     selected = passiveFrequency == freq,
                                     onClick = { passiveFrequency = freq },
@@ -856,7 +865,7 @@ fun AddTransactionDialog(
                             value = payoutDate,
                             onValueChange = { payoutDate = it },
                             label = { Text(Localization.t("payout_date", lang)) },
-                            placeholder = { Text("ej. Día 15 de cada mes") },
+                            placeholder = { Text(if (lang == AppLanguage.SPANISH) "ej. Día 15 de cada mes" else "e.g. 15th of each month") },
                             singleLine = true,
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.fillMaxWidth()
@@ -864,7 +873,7 @@ fun AddTransactionDialog(
                     } else {
                         // Active Income categories
                         Text(
-                            text = "Categoría de Ingreso Activo:",
+                            text = if (lang == AppLanguage.SPANISH) "Categoría de Ingreso Activo:" else "Active Income Category:",
                             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                         )
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -912,7 +921,7 @@ fun AddTransactionDialog(
                 } else {
                     // EXPENSE HIERARCHY
                     Text(
-                        text = "Grupo de Gastos:",
+                        text = if (lang == AppLanguage.SPANISH) "Grupo de Gastos:" else "Expense Group:",
                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     )
                     // Grupo de Gastos en LazyRow deslizable horizontal.
@@ -979,7 +988,7 @@ fun AddTransactionDialog(
 
                     // Category within group
                     Text(
-                        text = "Categoría Principal:",
+                        text = if (lang == AppLanguage.SPANISH) "Categoría Principal:" else "Main Category:",
                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     )
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -999,12 +1008,12 @@ fun AddTransactionDialog(
                     // Subcategories if available
                     if (hasSubcategories) {
                         Text(
-                            text = "Subcategoría Específica:",
+                            text = if (lang == AppLanguage.SPANISH) "Subcategoría Específica:" else "Specific Subcategory:",
                             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                         )
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            items(selectedCategoryItem.subcategories.size) { subIdx ->
-                                val sub = selectedCategoryItem.subcategories[subIdx]
+                            items(subcategoriesList.size) { subIdx ->
+                                val sub = subcategoriesList[subIdx]
                                 FilterChip(
                                     selected = selectedSubcategoryIndex == subIdx,
                                     onClick = {
@@ -1148,14 +1157,14 @@ fun AddTransactionDialog(
                     if (type == "INCOME") {
                         if (incomeSubType == "PASSIVE") {
                             finalGroup = "Ingresos Pasivos"
-                            finalCategory = selectedPassiveCategory.titleEs
+                            finalCategory = selectedPassiveCategory?.titleEs ?: "Ingresos Pasivos"
                             finalSubCategory = ""
                             finalDestination = selectedAcc?.let { "${if (it.toolType == "BILLETERA") "Billetera" else it.accountType} (${it.bankName})" } ?: "Ingreso General"
                             finalFrequency = passiveFrequency
                             finalPayoutDate = payoutDate.trim()
                         } else {
                             finalGroup = "Ingresos Activos"
-                            finalCategory = activeCategories[selectedActiveIndex].nameEs
+                            finalCategory = activeCategories.getOrNull(safeActiveIndex)?.nameEs ?: "Salario"
                             finalSubCategory = ""
                             finalDestination = selectedAcc?.let { "${if (it.toolType == "BILLETERA") "Billetera" else it.accountType} (${it.bankName})" } ?: "Ingreso General"
                             finalFrequency = ""
@@ -1168,7 +1177,7 @@ fun AddTransactionDialog(
                             CategoryGroupType.DEBT_PAYMENT -> "Pago de Deudas"
                             else -> "Gastos"
                         }
-                        finalCategory = selectedCategoryItem.nameEs
+                        finalCategory = selectedCategoryItem?.nameEs ?: "Otros Gastos"
                         finalSubCategory = selectedSubcategoryItem?.nameEs ?: ""
                         finalDestination = selectedAcc?.let { "${if (it.toolType == "BILLETERA") "Billetera" else it.accountType} (${it.bankName})" } ?: "Gasto General"
                         finalFrequency = ""

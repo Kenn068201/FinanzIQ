@@ -6,8 +6,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -36,6 +38,7 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -286,11 +289,18 @@ fun AuthenticatedAppScaffold(
             )
         },
         bottomBar = {
-            NavigationBar(
-                containerColor = MaterialTheme.colorScheme.surface,
-                tonalElevation = 2.dp,
-                modifier = Modifier.height(56.dp)
+            // Contenedor con espacio para la barra del sistema evitando que NavigationBar se aplaste en dispositivos físicos
+            Surface(
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 2.dp
             ) {
+                Box(modifier = Modifier.navigationBarsPadding()) {
+                    NavigationBar(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 0.dp,
+                        windowInsets = WindowInsets(0, 0, 0, 0),
+                        modifier = Modifier.height(56.dp)
+                    ) {
                 navItems.forEach { screen ->
                     val isSelected = currentRoute == screen.route
                     val title = com.example.util.Localization.t(screen.titleKey, lang)
@@ -348,6 +358,8 @@ fun AuthenticatedAppScaffold(
                         ),
                         modifier = Modifier.testTag("nav_tab_${screen.route}")
                     )
+                }
+            }
                 }
             }
         },
@@ -513,21 +525,23 @@ fun AuthenticatedAppScaffold(
          * actualizando en tiempo real la versión del cliente.
          */
         val isEndUser = currentUser?.role != "ADMIN"
-        val shouldShowUpdateDialog = isEndUser && latestAppVersion != null &&
-            latestAppVersion!!.versionNumber != clientAppVersion &&
-            (latestAppVersion!!.isMandatory || dismissedOptionalVersion != latestAppVersion!!.versionNumber)
+        val latest = latestAppVersion
+        val shouldShowUpdateDialog = isEndUser && latest != null &&
+            latest.versionNumber != clientAppVersion &&
+            (latest.isMandatory || dismissedOptionalVersion != latest.versionNumber)
 
         if (shouldShowUpdateDialog) {
             AppUpdatePromptDialog(
-                latestVersion = latestAppVersion,
+                latestVersion = latest,
                 clientAppVersion = clientAppVersion,
+                currentLanguage = lang,
                 onUpdateApp = {
-                    latestAppVersion?.let {
+                    latest?.let {
                         viewModel.clientUpdateAppVersion(it.versionNumber)
                     }
                 },
                 onContinueWithoutUpdate = {
-                    dismissedOptionalVersion = latestAppVersion?.versionNumber
+                    dismissedOptionalVersion = latest?.versionNumber
                 }
             )
         }

@@ -143,8 +143,8 @@ fun TransferFundsDialog(
                 Spacer(modifier = Modifier.height(14.dp))
 
                 // Cuadro rojo de advertencias y errores establecido en la app
-                if (errorMessage != null) {
-                    ErrorWarningBox(message = errorMessage!!)
+                errorMessage?.let { msg ->
+                    ErrorWarningBox(message = msg)
                     Spacer(modifier = Modifier.height(12.dp))
                 }
 
@@ -173,18 +173,19 @@ fun TransferFundsDialog(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Column(modifier = Modifier.weight(1f)) {
+                                val originAcc = selectedOrigin
                                 Text(
-                                    text = if (selectedOrigin != null) {
-                                        "${selectedOrigin!!.bankName} • ${selectedOrigin!!.accountType} (${selectedOrigin!!.accountNumber})"
+                                    text = if (originAcc != null) {
+                                        "${originAcc.bankName} • ${originAcc.accountType} (${originAcc.accountNumber})"
                                     } else Localization.t("select_account_placeholder", lang),
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.SemiBold
                                 )
-                                if (selectedOrigin != null) {
+                                if (originAcc != null) {
                                     Text(
-                                        text = "${Localization.t("available_prefix", lang)} ${formatCurrency(selectedOrigin!!.balance, currency)}",
+                                        text = "${Localization.t("available_prefix", lang)} ${formatCurrency(originAcc.balance, currency)}",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = if (selectedOrigin!!.balance > 0) FinanceSuccess else FinanceError
+                                        color = if (originAcc.balance > 0) FinanceSuccess else FinanceError
                                     )
                                 }
                             }
@@ -241,16 +242,17 @@ fun TransferFundsDialog(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Column(modifier = Modifier.weight(1f)) {
+                                val destAcc = selectedDestination
                                 Text(
-                                    text = if (selectedDestination != null) {
-                                        "${selectedDestination!!.bankName} • ${selectedDestination!!.accountType} (${selectedDestination!!.accountNumber})"
+                                    text = if (destAcc != null) {
+                                        "${destAcc.bankName} • ${destAcc.accountType} (${destAcc.accountNumber})"
                                     } else Localization.t("select_account_placeholder", lang),
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.SemiBold
                                 )
-                                if (selectedDestination != null) {
+                                if (destAcc != null) {
                                     Text(
-                                        text = "${Localization.t("balance_prefix", lang)} ${formatCurrency(selectedDestination!!.balance, currency)}",
+                                        text = "${Localization.t("balance_prefix", lang)} ${formatCurrency(destAcc.balance, currency)}",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = Color.Gray
                                     )

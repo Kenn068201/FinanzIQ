@@ -383,10 +383,11 @@ fun AdminScreen(
                 5 -> {
                     SecurityDirectivesSection(
                         currentPolicy = securityPolicy,
+                        lang = lang,
                         onSavePolicy = { updatedPolicy ->
                             viewModel.updateSecurityPolicy(updatedPolicy) { success, errorMsg ->
                                 if (success) {
-                                    feedbackMessage = Pair(true, "Directivas de seguridad actualizadas y aplicadas globalmente con éxito.")
+                                    feedbackMessage = Pair(true, if (lang == AppLanguage.SPANISH) "Directivas de seguridad actualizadas y versión obligatoria publicada." else "Security policies updated and mandatory version published.")
                                 } else {
                                     feedbackMessage = Pair(false, errorMsg ?: "Error al actualizar las directivas de seguridad.")
                                 }
@@ -548,10 +549,15 @@ fun AdminScreen(
             AddCategoryDialog(
                 lang = lang,
                 onDismiss = { showAddCategoryDialog = false },
-                onConfirm = { name, type, iconEmoji ->
+                onConfirm = { name, type, groupType, iconEmoji ->
                     val finalCategoryName = if (iconEmoji.isNotBlank()) "$iconEmoji $name" else name
-                    viewModel.addCategory(finalCategoryName, type)
-                    feedbackMessage = Pair(true, "Categoría '$finalCategoryName' creada con éxito.")
+                    viewModel.addCategory(
+                        name = finalCategoryName,
+                        type = type,
+                        groupType = groupType,
+                        iconName = iconEmoji
+                    )
+                    feedbackMessage = Pair(true, if (lang == AppLanguage.SPANISH) "Categoría '$finalCategoryName' creada con éxito." else "Category '$finalCategoryName' created successfully.")
                     showAddCategoryDialog = false
                 }
             )
@@ -1225,8 +1231,10 @@ fun UsersManagementSection(
 @Composable
 fun SecurityDirectivesSection(
     currentPolicy: SecurityPolicyEntity,
+    lang: com.example.util.AppLanguage = com.example.util.AppLanguage.SPANISH,
     onSavePolicy: (SecurityPolicyEntity) -> Unit
 ) {
+    val isEnglish = lang == com.example.util.AppLanguage.ENGLISH
     var maxLoginAttemptsStr by remember(currentPolicy) { mutableStateOf(currentPolicy.maxLoginAttempts.toString()) }
     var lockoutSecondsStr by remember(currentPolicy) { mutableStateOf(currentPolicy.lockoutDurationSeconds.toString()) }
     var minAgeStr by remember(currentPolicy) { mutableStateOf(currentPolicy.minAge.toString()) }
@@ -1258,7 +1266,10 @@ fun SecurityDirectivesSection(
                 Icon(Icons.Default.Security, contentDescription = null, tint = FinancePrimary, modifier = Modifier.size(24.dp))
                 Spacer(modifier = Modifier.width(10.dp))
                 Text(
-                    text = "Ajuste de directivas de seguridad globales. Cada cambio guardado se reflejará instantáneamente en el inicio de sesión y registro de todos los usuarios.",
+                    text = if (isEnglish)
+                        "Global security directives settings. Every saved change reflects instantly across login and registration flows for all users."
+                    else
+                        "Ajuste de directivas de seguridad globales. Cada cambio guardado se reflejará instantáneamente en el inicio de sesión y registro de todos los usuarios.",
                     style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF1E3A8A), fontWeight = FontWeight.Medium)
                 )
             }
@@ -1276,7 +1287,7 @@ fun SecurityDirectivesSection(
         ) {
             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    text = "Seguridad de Inicio de Sesión",
+                    text = if (isEnglish) "Login Security" else "Seguridad de Inicio de Sesión",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                 )
 
@@ -1286,7 +1297,7 @@ fun SecurityDirectivesSection(
                         maxLoginAttemptsStr = it
                         localValidationError = null
                     },
-                    label = { Text("Número máximo de intentos fallidos *") },
+                    label = { Text(if (isEnglish) "Maximum failed login attempts *" else "Número máximo de intentos fallidos *") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
@@ -1299,8 +1310,8 @@ fun SecurityDirectivesSection(
                         lockoutSecondsStr = it
                         localValidationError = null
                     },
-                    label = { Text("Tiempo de bloqueo tras agotar intentos (segundos) *") },
-                    placeholder = { Text("ej. 300 para 5 minutos") },
+                    label = { Text(if (isEnglish) "Lockout duration after attempts (seconds) *" else "Tiempo de bloqueo tras agotar intentos (segundos) *") },
+                    placeholder = { Text(if (isEnglish) "e.g. 300 for 5 minutes" else "ej. 300 para 5 minutos") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
@@ -1317,7 +1328,7 @@ fun SecurityDirectivesSection(
         ) {
             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    text = "Requisitos de Registro",
+                    text = if (isEnglish) "Registration Requirements" else "Requisitos de Registro",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                 )
 
@@ -1327,7 +1338,7 @@ fun SecurityDirectivesSection(
                         minAgeStr = it
                         localValidationError = null
                     },
-                    label = { Text("Edad mínima requerida (años) *") },
+                    label = { Text(if (isEnglish) "Minimum required age (years) *" else "Edad mínima requerida (años) *") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
@@ -1340,7 +1351,7 @@ fun SecurityDirectivesSection(
                         maxNameLengthStr = it
                         localValidationError = null
                     },
-                    label = { Text("Longitud máxima de nombres y apellidos *") },
+                    label = { Text(if (isEnglish) "Maximum length for names & surnames *" else "Longitud máxima de nombres y apellidos *") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
@@ -1357,7 +1368,7 @@ fun SecurityDirectivesSection(
         ) {
             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    text = "Requisitos de Contraseña Válida",
+                    text = if (isEnglish) "Valid Password Requirements" else "Requisitos de Contraseña Válida",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                 )
 
@@ -1371,7 +1382,7 @@ fun SecurityDirectivesSection(
                             passwordMinLengthStr = it
                             localValidationError = null
                         },
-                        label = { Text("Long. Mínima *") },
+                        label = { Text(if (isEnglish) "Min Length *" else "Long. Mínima *") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
@@ -1384,7 +1395,7 @@ fun SecurityDirectivesSection(
                             passwordMaxLengthStr = it
                             localValidationError = null
                         },
-                        label = { Text("Long. Máxima *") },
+                        label = { Text(if (isEnglish) "Max Length *" else "Long. Máxima *") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
@@ -1397,7 +1408,7 @@ fun SecurityDirectivesSection(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Requerir mayúscula (A-Z)", style = MaterialTheme.typography.bodyMedium)
+                    Text(if (isEnglish) "Require uppercase (A-Z)" else "Requerir mayúscula (A-Z)", style = MaterialTheme.typography.bodyMedium)
                     Switch(checked = requireUppercase, onCheckedChange = { requireUppercase = it })
                 }
 
@@ -1406,7 +1417,7 @@ fun SecurityDirectivesSection(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Requerir minúscula (a-z)", style = MaterialTheme.typography.bodyMedium)
+                    Text(if (isEnglish) "Require lowercase (a-z)" else "Requerir minúscula (a-z)", style = MaterialTheme.typography.bodyMedium)
                     Switch(checked = requireLowercase, onCheckedChange = { requireLowercase = it })
                 }
 
@@ -1415,7 +1426,7 @@ fun SecurityDirectivesSection(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Requerir número (0-9)", style = MaterialTheme.typography.bodyMedium)
+                    Text(if (isEnglish) "Require number (0-9)" else "Requerir número (0-9)", style = MaterialTheme.typography.bodyMedium)
                     Switch(checked = requireNumber, onCheckedChange = { requireNumber = it })
                 }
 
@@ -1424,7 +1435,7 @@ fun SecurityDirectivesSection(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Requerir carácter especial (@#$%&*!?)", style = MaterialTheme.typography.bodyMedium)
+                    Text(if (isEnglish) "Require special character (@#$%&*!?)" else "Requerir carácter especial (@#$%&*!?)", style = MaterialTheme.typography.bodyMedium)
                     Switch(checked = requireSpecialChar, onCheckedChange = { requireSpecialChar = it })
                 }
             }
@@ -1453,7 +1464,7 @@ fun SecurityDirectivesSection(
             ) {
                 Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Restablecer")
+                Text(if (isEnglish) "Reset" else "Restablecer")
             }
 
             Button(
@@ -1466,27 +1477,27 @@ fun SecurityDirectivesSection(
                     val pwdMax = passwordMaxLengthStr.toIntOrNull()
 
                     if (maxAtt == null || maxAtt <= 0) {
-                        localValidationError = "El número de intentos de inicio de sesión no puede ser negativo ni 0."
+                        localValidationError = if (isEnglish) "Max attempts cannot be negative or zero." else "El número de intentos de inicio de sesión no puede ser negativo ni 0."
                         return@Button
                     }
                     if (lockSecs == null || lockSecs <= 0) {
-                        localValidationError = "El tiempo de bloqueo no puede ser negativo ni 0."
+                        localValidationError = if (isEnglish) "Lockout duration cannot be negative or zero." else "El tiempo de bloqueo no puede ser negativo ni 0."
                         return@Button
                     }
                     if (minAge == null || minAge <= 0) {
-                        localValidationError = "La edad mínima no puede ser negativa ni 0."
+                        localValidationError = if (isEnglish) "Minimum age cannot be negative or zero." else "La edad mínima no puede ser negativa ni 0."
                         return@Button
                     }
                     if (maxName == null || maxName <= 0) {
-                        localValidationError = "La longitud máxima de nombres no puede ser negativa ni 0."
+                        localValidationError = if (isEnglish) "Max name length cannot be negative or zero." else "La longitud máxima de nombres no puede ser negativa ni 0."
                         return@Button
                     }
                     if (pwdMin == null || pwdMin < 4) {
-                        localValidationError = "La longitud mínima de contraseña debe ser de al menos 4 caracteres."
+                        localValidationError = if (isEnglish) "Password min length must be at least 4 characters." else "La longitud mínima de contraseña debe ser de al menos 4 caracteres."
                         return@Button
                     }
                     if (pwdMax == null || pwdMax < pwdMin) {
-                        localValidationError = "La longitud máxima de contraseña no puede ser menor a la longitud mínima."
+                        localValidationError = if (isEnglish) "Max password length cannot be less than min length." else "La longitud máxima de contraseña no puede ser menor a la longitud mínima."
                         return@Button
                     }
 
@@ -1511,7 +1522,7 @@ fun SecurityDirectivesSection(
             ) {
                 Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("Guardar Directivas", fontWeight = FontWeight.Bold)
+                Text(if (isEnglish) "Save Directives" else "Guardar Directivas", fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -1615,11 +1626,17 @@ fun CategoriesManagementSection(
 fun AddCategoryDialog(
     lang: com.example.util.AppLanguage,
     onDismiss: () -> Unit,
-    onConfirm: (name: String, type: String, iconEmoji: String) -> Unit
+    onConfirm: (name: String, type: String, groupType: String, iconEmoji: String) -> Unit
 ) {
     val isEnglish = lang == com.example.util.AppLanguage.ENGLISH
     var name by remember { mutableStateOf("") }
     var type by remember { mutableStateOf("EXPENSE") }
+    var selectedGeneralGroup by remember(type) {
+        mutableStateOf(
+            if (type == "EXPENSE") com.example.data.model.CategoryGroupType.FIXED_EXPENSE
+            else com.example.data.model.CategoryGroupType.ACTIVE_INCOME
+        )
+    }
     var selectedEmoji by remember { mutableStateOf("🏷️") }
     var selectedGroupIndex by remember { mutableStateOf(0) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
@@ -1664,14 +1681,17 @@ fun AddCategoryDialog(
                     ErrorWarningBox(message = errorMsg!!)
                 }
 
-                // Selector de Tipo: Gasto o Ingreso
+                // 1. Selector de Tipo: Gasto o Ingreso
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     FilterChip(
                         selected = type == "EXPENSE",
-                        onClick = { type = "EXPENSE" },
+                        onClick = {
+                            type = "EXPENSE"
+                            selectedGeneralGroup = com.example.data.model.CategoryGroupType.FIXED_EXPENSE
+                        },
                         label = { Text(if (isEnglish) "Expense" else "Gasto") },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = Color(0xFFFEE2E2),
@@ -1682,7 +1702,10 @@ fun AddCategoryDialog(
 
                     FilterChip(
                         selected = type == "INCOME",
-                        onClick = { type = "INCOME" },
+                        onClick = {
+                            type = "INCOME"
+                            selectedGeneralGroup = com.example.data.model.CategoryGroupType.ACTIVE_INCOME
+                        },
                         label = { Text(if (isEnglish) "Income" else "Ingreso") },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = Color(0xFFDCFCE7),
@@ -1692,7 +1715,58 @@ fun AddCategoryDialog(
                     )
                 }
 
-                // Campo para el nombre de la categoría
+                // 2. Selector de Categoría General (especificada antes de dar nombre e icono)
+                Text(
+                    text = if (isEnglish) "General Category Group:" else "Categoría General:",
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (type == "EXPENSE") {
+                        item {
+                            FilterChip(
+                                selected = selectedGeneralGroup == com.example.data.model.CategoryGroupType.FIXED_EXPENSE,
+                                onClick = { selectedGeneralGroup = com.example.data.model.CategoryGroupType.FIXED_EXPENSE },
+                                label = { Text(if (isEnglish) "🔒 Fixed Expenses" else "🔒 Gastos Fijos", fontSize = 12.sp) }
+                            )
+                        }
+                        item {
+                            FilterChip(
+                                selected = selectedGeneralGroup == com.example.data.model.CategoryGroupType.VARIABLE_EXPENSE,
+                                onClick = { selectedGeneralGroup = com.example.data.model.CategoryGroupType.VARIABLE_EXPENSE },
+                                label = { Text(if (isEnglish) "🎯 Variable (Wants)" else "🎯 Gastos Variables", fontSize = 12.sp) }
+                            )
+                        }
+                        item {
+                            FilterChip(
+                                selected = selectedGeneralGroup == com.example.data.model.CategoryGroupType.DEBT_PAYMENT,
+                                onClick = { selectedGeneralGroup = com.example.data.model.CategoryGroupType.DEBT_PAYMENT },
+                                label = { Text(if (isEnglish) "💳 Debt Payment" else "💳 Pago de Deudas", fontSize = 12.sp) }
+                            )
+                        }
+                    } else {
+                        item {
+                            FilterChip(
+                                selected = selectedGeneralGroup == com.example.data.model.CategoryGroupType.ACTIVE_INCOME,
+                                onClick = { selectedGeneralGroup = com.example.data.model.CategoryGroupType.ACTIVE_INCOME },
+                                label = { Text(if (isEnglish) "💼 Active Income" else "💼 Ingresos Activos", fontSize = 12.sp) }
+                            )
+                        }
+                        item {
+                            FilterChip(
+                                selected = selectedGeneralGroup == com.example.data.model.CategoryGroupType.PASSIVE_INCOME,
+                                onClick = { selectedGeneralGroup = com.example.data.model.CategoryGroupType.PASSIVE_INCOME },
+                                label = { Text(if (isEnglish) "🌱 Passive Income" else "🌱 Ingresos Pasivos", fontSize = 12.sp) }
+                            )
+                        }
+                    }
+                }
+
+                // 3. Campo para el nombre de la categoría
                 OutlinedTextField(
                     value = name,
                     onValueChange = {
@@ -1706,7 +1780,7 @@ fun AddCategoryDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                // Selector de Grupo Temático del Catálogo de Iconos
+                // 4. Selector de Grupo Temático del Catálogo de Iconos
                 Text(
                     text = if (isEnglish) "Select Category Icon" else "Seleccionar Icono de la Categoría",
                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
@@ -1773,7 +1847,7 @@ fun AddCategoryDialog(
                         errorMsg = if (isEnglish) "The category name cannot be empty." else "El nombre de la categoría no puede estar vacío."
                         return@Button
                     }
-                    onConfirm(name.trim(), type, selectedEmoji)
+                    onConfirm(name.trim(), type, selectedGeneralGroup.name, selectedEmoji)
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = FinancePrimary)
             ) {

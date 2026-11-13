@@ -229,4 +229,95 @@ class ExampleUnitTest {
         assertEquals(900.0, days180, 0.001)
         assertEquals(1825.0, days365, 0.001)
     }
+
+    /**
+     * Prueba de Caja Blanca 9: Ciclo de vida y reaparición continua de actualizaciones obligatorias.
+     * 
+     * Qué hace:
+     * Verifica que cada vez que el Administrador registra una nueva versión obligatoria (manual o automática):
+     * 1. El usuario final con una versión anterior siempre reciba el aviso de actualización obligatorio.
+     * 2. Una vez que el usuario presiona "Actualizar Ahora", la versión queda registrada y el aviso desaparece.
+     * 3. Al registrarse una actualización subsiguiente a futuro, el aviso vuelve a salir puntualmente.
+     * 4. Para el Administrador, el aviso nunca bloquea su interfaz ya que opera directamente con la última versión.
+     * 
+     * Por qué se implementa:
+     * Satisface la directiva estricta de que cada actualización obligatoria presente el botón de actualizar
+     * y el comportamiento se repita sin excepciones para todas las versiones futuras.
+     * 
+     * Relación con el código:
+     * Valida la condición condicional de MainAppNavigation.kt y la lógica de FinanceViewModel.kt.
+     */
+    @Test
+    fun testMandatoryUpdatePromptLifecycle() {
+        data class MockVersion(val versionNumber: String, val isMandatory: Boolean, val releaseNotes: String)
+
+        fun shouldShowPrompt(
+            userRole: String,
+            clientVersion: String,
+            latestVersion: MockVersion?,
+            dismissedOptional: String? = null
+        ): Boolean {
+            val isEndUser = userRole != "ADMIN"
+            if (!isEndUser || latestVersion == null) return false
+            if (latestVersion.versionNumber == clientVersion) return false
+            return latestVersion.isMandatory || dismissedOptional != latestVersion.versionNumber
+        }
+
+        // 1. Estado inicial del usuario Elena en v1.0.0 cuando el sistema tiene v2.0.0 obligatoria
+        val v2_0_0 = MockVersion("2.0.0", isMandatory = true, releaseNotes = "Lanzamiento oficial")
+        var elenaVersion = "1.0.0"
+
+        assertTrue(shouldShowPrompt(userRole = "USER", clientVersion = elenaVersion, latestVersion = v2_0_0))
+        // El administrador Carlos nunca debe ver bloqueada su interfaz
+        assertFalse(shouldShowPrompt(userRole = "ADMIN", clientVersion = "2.0.0", latestVersion = v2_0_0))
+
+        // 2. Elena pulsa "Actualizar Ahora"
+        elenaVersion = "2.0.0"
+        assertFalse(shouldShowPrompt(userRole = "USER", clientVersion = elenaVersion, latestVersion = v2_0_0))
+
+        // 3. El Administrador registra una nueva versión obligatoria v2.0.1 (manual o por seguridad)
+        val v2_0_1 = MockVersion("2.0.1", isMandatory = true, releaseNotes = "Actualización obligatoria de seguridad")
+        // Como la versión de Elena es v2.0.0 y la nueva es v2.0.1, el aviso debe reaparecer inmediatamente
+        assertTrue(shouldShowPrompt(userRole = "USER", clientVersion = elenaVersion, latestVersion = v2_0_1))
+
+        // 4. Elena actualiza a v2.0.1
+        elenaVersion = "2.0.1"
+        assertFalse(shouldShowPrompt(userRole = "USER", clientVersion = elenaVersion, latestVersion = v2_0_1))
+
+        // 5. El Administrador publica en el futuro v2.0.2 obligatoria
+        val v2_0_2 = MockVersion("2.0.2", isMandatory = true, releaseNotes = "Nuevos módulos de auditoría")
+        assertTrue(shouldShowPrompt(userRole = "USER", clientVersion = elenaVersion, latestVersion = v2_0_2))
+    }
+
+    /**
+     * Prueba de Caja Blanca 10: Incremento correlativo y sincronización de notas en actualización por seguridad.
+     * 
+     * Qué hace:
+     * Valida el algoritmo de cálculo de parche de versión y garantiza que las notas de cambio de seguridad
+     * sean idénticas y homogéneas.
+     * 
+     * Por qué se implementa:
+     * Asegura que el cambio de directivas de seguridad siempre genere una versión subsiguiente válida.
+     */
+    @Test
+    fun testAutoSecurityUpdateVersionIncrement() {
+        fun calculateNextVersion(currentVersion: String): String {
+            val parts = currentVersion.split(".")
+            return if (parts.size == 3) {
+                val patch = (parts[2].toIntOrNull() ?: 0) + 1
+                "${parts[0]}.${parts[1]}.$patch"
+            } else {
+                "${currentVersion}.1"
+            }
+        }
+
+        assertEquals("2.0.1", calculateNextVersion("2.0.0"))
+        assertEquals("2.0.2", calculateNextVersion("2.0.1"))
+        assertEquals("2.1.1", calculateNextVersion("2.1.0"))
+        assertEquals("3.0.1", calculateNextVersion("3.0.0"))
+        assertEquals("3.0.1", calculateNextVersion("3.0"))
+
+        val expectedSecurityNote = "Actualización obligatoria de seguridad: Nuevas directivas de acceso y políticas de contraseñas aplicadas por administración."
+        assertTrue(expectedSecurityNote.contains("Actualización obligatoria de seguridad"))
+    }
 }

@@ -1,5 +1,6 @@
 package com.example.data.model
 
+import com.example.data.local.CategoryEntity
 import com.example.util.AppLanguage
 import java.util.Locale
 
@@ -240,6 +241,131 @@ object CategoryDataHierarchy {
     )
 
     /**
+     * Retorna el nombre traducido del título de un movimiento o meta según el idioma activo del usuario.
+     * Permite que títulos predeterminados o comunes (como 'Gasolina y Transporte', 'Pago de Quincena', etc.)
+     * se muestren en inglés cuando el usuario tiene seleccionada dicha preferencia lingüística.
+     */
+    fun getTransactionTitleDisplayName(title: String, lang: AppLanguage): String {
+        if (title.isBlank()) return title
+        val trimmed = title.trim()
+
+        if (lang == AppLanguage.SPANISH) {
+            return when (trimmed.lowercase(Locale.ROOT)) {
+                "gasoline & transportation", "gasoline and transportation" -> "Gasolina y Transporte"
+                "bi-weekly paycheck", "biweekly paycheck" -> "Pago de Quincena"
+                "supermarket la union" -> "Supermercado La Unión"
+                "pharmacy & medicine", "pharmacy and medicine" -> "Farmacia y Medicinas"
+                "movies & fast dinner", "movies and fast dinner" -> "Cine y Cena Rápida"
+                "freelance project sale" -> "Venta de Proyecto Freelance"
+                "electricity bill (enel)", "electricity bill enel" -> "Recibo de Luz Enel"
+                "online finance course" -> "Curso de Finanzas Online"
+                "water utility bill" -> "Recibo de Agua Potable"
+                "fiber optic internet" -> "Internet de Fibra Óptica"
+                "personal loan installment" -> "Cuota Préstamo Personal"
+                "emergency fund" -> "Fondo de Emergencia"
+                "vacation trip" -> "Viaje de Vacaciones"
+                "test expense" -> "Gasto de prueba"
+                "test income" -> "Ingreso de prueba"
+                else -> trimmed
+            }
+        }
+
+        // Traducción de títulos al inglés
+        return when (trimmed.lowercase(Locale.ROOT)) {
+            "gasolina y transporte" -> "Gasoline & Transportation"
+            "pago de quincena" -> "Bi-weekly Paycheck"
+            "supermercado la unión", "supermercado la union" -> "Supermarket La Union"
+            "farmacia y medicinas" -> "Pharmacy & Medicine"
+            "cine y cena rápida", "cine y cena rapida" -> "Movies & Fast Dinner"
+            "venta de proyecto freelance" -> "Freelance Project Sale"
+            "recibo de luz enel" -> "Electricity Bill (Enel)"
+            "curso de finanzas online" -> "Online Finance Course"
+            "recibo de agua potable" -> "Water Utility Bill"
+            "internet de fibra óptica", "internet de fibra optica" -> "Fiber Optic Internet"
+            "cuota préstamo personal", "cuota prestamo personal" -> "Personal Loan Installment"
+            "fondo de emergencia" -> "Emergency Fund"
+            "viaje de vacaciones" -> "Vacation Trip"
+            "gasto de prueba" -> "Test Expense"
+            "ingreso de prueba" -> "Test Income"
+            else -> {
+                // Si coincide directamente con una categoría, aplicar la traducción de la categoría
+                getCategoryDisplayName(trimmed, lang)
+            }
+        }
+    }
+
+    /**
+     * Retorna las categorías disponibles para un grupo específico de gastos o ingresos,
+     * fusionando las categorías base predeterminadas con las creadas por el Administrador en Room.
+     */
+    fun getCategoriesForGroup(
+        groupType: CategoryGroupType,
+        customCategories: List<CategoryEntity> = emptyList()
+    ): List<CategoryItem> {
+        val baseList = when (groupType) {
+            CategoryGroupType.FIXED_EXPENSE -> fixedExpenseGroup.categories
+            CategoryGroupType.VARIABLE_EXPENSE -> variableExpenseGroup.categories
+            CategoryGroupType.DEBT_PAYMENT -> debtPaymentGroup.categories
+            CategoryGroupType.ACTIVE_INCOME -> activeIncomeCategories
+            CategoryGroupType.PASSIVE_INCOME -> emptyList()
+        }
+
+        val matchingCustom = customCategories.filter { cat ->
+            cat.colorHex == groupType.name ||
+                (groupType == CategoryGroupType.FIXED_EXPENSE && cat.type == "EXPENSE" && (cat.colorHex.startsWith("#") || cat.colorHex.isBlank())) ||
+                (groupType == CategoryGroupType.ACTIVE_INCOME && cat.type == "INCOME" && (cat.colorHex.startsWith("#") || cat.colorHex.isBlank()))
+        }.map { entity ->
+            CategoryItem(
+                id = "custom_${entity.id}",
+                nameEs = entity.name,
+                nameEn = entity.name,
+                iconEmoji = if (entity.iconName.isNotBlank() && entity.iconName.length <= 4) entity.iconName else "🏷️"
+            )
+        }
+
+        return baseList + matchingCustom
+    }
+
+    /**
+     * Retorna la lista de categorías para Ingreso Activo integrando las categorías del Administrador.
+     */
+    fun getActiveIncomeCategories(
+        customCategories: List<CategoryEntity> = emptyList()
+    ): List<CategoryItem> {
+        return getCategoriesForGroup(CategoryGroupType.ACTIVE_INCOME, customCategories)
+    }
+
+    /**
+     * Retorna la lista de categorías para Ingreso Pasivo integrando las creadas por el Administrador.
+     */
+    fun getPassiveIncomeCategories(
+        customCategories: List<CategoryEntity> = emptyList()
+    ): List<PassiveIncomeCategory> {
+        val customPassive = customCategories.filter { it.colorHex == CategoryGroupType.PASSIVE_INCOME.name }.map { entity ->
+            PassiveIncomeCategory(
+                id = "custom_${entity.id}",
+                titleEs = entity.name,
+                titleEn = entity.name,
+                iconEmoji = if (entity.iconName.isNotBlank() && entity.iconName.length <= 4) entity.iconName else "🏷️",
+                explanationEs = "Ingreso pasivo registrado por administración.",
+                explanationEn = "Passive income category configured by administration."
+            )
+        }
+        return passiveIncomeCategories + customPassive
+    }
+
+    /**
+     * Retorna todas las categorías de gasto combinadas (Fijos, Variables, Deuda y creadas por Admin).
+     */
+    fun getAllExpenseCategories(
+        customCategories: List<CategoryEntity> = emptyList()
+    ): List<CategoryItem> {
+        return getCategoriesForGroup(CategoryGroupType.FIXED_EXPENSE, customCategories) +
+            getCategoriesForGroup(CategoryGroupType.VARIABLE_EXPENSE, customCategories) +
+            getCategoriesForGroup(CategoryGroupType.DEBT_PAYMENT, customCategories)
+    }
+
+    /**
      * Retorna el nombre traducido de una categoría o subcategoría según el idioma activo del usuario.
      * Si el idioma seleccionado es español, conserva el nombre en español.
      * Si es inglés, busca la traducción correspondiente en el catálogo jerárquico o en los términos equivalentes.
@@ -270,22 +396,23 @@ object CategoryDataHierarchy {
             "transporte", "gasolina y transporte" -> "Transportation"
             "salario", "sueldo", "pago de quincena", "salarios" -> "Salary"
             "vivienda" -> "Housing"
-            "servicios públicos", "servicios publicos", "servicios" -> "Public Utilities"
+            "servicios públicos", "servicios publicos", "servicios", "servicios básicos", "servicios basicos" -> "Public Utilities"
             "salud" -> "Health"
             "educación", "educacion" -> "Education"
             "comida fuera y delivery", "comida fuera", "comida" -> "Dining Out & Delivery"
             "entretenimiento y ocio", "entretenimiento", "ocio" -> "Entertainment & Leisure"
             "suscripciones digitales", "suscripciones" -> "Digital Subscriptions"
-            "compras y cuidado personal", "compras" -> "Shopping & Self Care"
+            "compras y cuidado personal", "compras", "ropa y calzado" -> "Shopping & Self Care"
             "regalos y donaciones" -> "Gifts & Donations"
             "créditos y préstamos", "creditos y prestamos", "créditos", "deudas", "pago de deudas" -> "Debt Payments"
             "bienes raíces", "bienes raices" -> "Real Estate"
             "inversiones financieras", "inversiones" -> "Financial Investments"
-            "negocios automatizados" -> "Automated Businesses"
+            "negocios automatizados", "negocio propio" -> "Automated Businesses"
             "honorarios profesionales", "honorarios" -> "Professional Fees"
             "ventas directas", "ventas" -> "Direct Sales"
             "comisiones" -> "Commissions"
             "otros ingresos activos", "otros ingresos" -> "Other Active Income"
+            "otros gastos" -> "Other Expenses"
             "gasolina" -> "Gasoline"
             "agua" -> "Water"
             "luz", "electricidad" -> "Electricity"

@@ -157,8 +157,8 @@ fun ExportPdfReportDialog(
                 )
 
                 // Mensaje de advertencia o error en caso de periodo inválido o sin movimientos
-                if (errorMessage != null) {
-                    ErrorWarningBox(message = errorMessage!!)
+                errorMessage?.let { msg ->
+                    ErrorWarningBox(message = msg)
                 }
 
                 // Chips de selección rápida de rango de fechas en fila horizontal deslizable (LazyRow)
@@ -378,8 +378,16 @@ fun ExportPdfReportDialog(
                             Toast.LENGTH_SHORT
                         ).show()
 
-                        PdfReportGenerator.openOrSharePdf(context, pdfFile)
-                        onDismiss()
+                        val opened = PdfReportGenerator.openOrSharePdf(context, pdfFile)
+                        if (opened) {
+                            onDismiss()
+                        } else {
+                            errorMessage = if (lang == com.example.util.AppLanguage.ENGLISH) {
+                                "PDF saved, but no app was found to open or share it."
+                            } else {
+                                "PDF guardado, pero no se encontró una app disponible para compartirlo."
+                            }
+                        }
                     } catch (e: Exception) {
                         errorMessage = "Error al generar PDF: ${e.localizedMessage ?: "Error desconocido"}"
                     } finally {

@@ -28,6 +28,9 @@ import com.example.util.CountryPhoneData
 import com.example.util.CurrencyOption
 import com.example.util.Localization
 import com.example.util.Validators
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,6 +41,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -100,13 +104,53 @@ data class ApiStatusItem(
 }
 
 class FinanceViewModel(application: Application) : AndroidViewModel(application) {
-    private val repository: FinanceRepository
-    val database: AppDatabase
+    @Volatile
+    private var repository: FinanceRepository
+    @Volatile
+    var database: AppDatabase
+        private set
+    private val userDataJobs = mutableListOf<Job>()
+    private val globalObserverJobs = mutableListOf<Job>()
+    @Volatile
+    private var isRegistering = false
+
+    /**
+     * Manejador global de errores para tareas en segundo plano del ViewModel.
+     * Qué hace: atrapa fallos inesperados en corrutinas para que la app no se cierre de golpe.
+     * Por qué se implementa así: al exportar la app a un teléfono real, cualquier error temporal
+     * de base de datos o red cerraba el proceso completo si no tenía captura.
+     * Cómo se relaciona: todas las tareas críticas de carga y sesión usan este respaldo.
+     */
+    private val safeCoroutineHandler = CoroutineExceptionHandler { _, throwable ->
+        android.util.Log.e("FinanceViewModel", "Error controlado en corrutina", throwable)
+    }
+
+    private fun launchSafe(block: suspend CoroutineScope.() -> Unit): Job =
+        viewModelScope.launch(safeCoroutineHandler, block = block)
 
     init {
         database = AppDatabase.getDatabase(application, viewModelScope)
         repository = FinanceRepository(database)
         observeCategories()
+    }
+
+    /**
+     * Prepara la base de datos antes de iniciar sesión, registrar o guardar información.
+     * Qué hace: verifica los datos base y, si la base estaba dañada o desactualizada,
+     * refresca el repositorio y reinicia los observadores automáticos en pantalla.
+     * Por qué se implementa así: permite recuperarse sin cerrar la app si una actualización previa
+     * dejó tablas viejas en el dispositivo.
+     * Cómo se relaciona: se llama al arrancar observeCategories y al entrar en login o register.
+     */
+    private suspend fun ensureDatabaseReady() {
+        val (readyDb, wasRecovered) = AppDatabase.ensureSeededOrRecover(getApplication(), viewModelScope)
+        if (wasRecovered || readyDb !== database) {
+            database = readyDb
+            repository = FinanceRepository(readyDb)
+            if (wasRecovered) {
+                observeCategories()
+            }
+        }
     }
 
     // --- UI Theme & Localization ---
@@ -158,6 +202,9 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
     private val _authError = MutableStateFlow<String?>(null)
     val authError: StateFlow<String?> = _authError.asStateFlow()
+
+    private val _isLoggingIn = MutableStateFlow(false)
+    val isLoggingIn: StateFlow<Boolean> = _isLoggingIn.asStateFlow()
 
     private val _authSuccessMessage = MutableStateFlow<String?>(null)
     val authSuccessMessage: StateFlow<String?> = _authSuccessMessage.asStateFlow()
@@ -258,8 +305,66 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     private val _latestAppVersion = MutableStateFlow<AppVersionEntity?>(null)
     val latestAppVersion: StateFlow<AppVersionEntity?> = _latestAppVersion.asStateFlow()
 
+    private val appPrefs = application.getSharedPreferences("finanziq_client_prefs", android.content.Context.MODE_PRIVATE)
     private val _clientAppVersion = MutableStateFlow("1.0.0")
     val clientAppVersion: StateFlow<String> = _clientAppVersion.asStateFlow()
+
+    /**
+     * Interfaz de Versionado: Obtiene la versión local de la aplicación almacenada para un usuario específico.
+     * 
+     * Qué hace:
+     * Consulta en SharedPreferences la versión aceptada para el identificador del usuario.
+     * Si el usuario aún no ha realizado ninguna actualización, retorna por defecto "1.0.0".
+     * 
+     * Por qué se implementa de esta forma:
+     * Aísla las versiones de cada usuario de forma independiente, evitando que las actualizaciones publicadas
+     * por el Administrador sobreescriban automáticamente la versión del cliente antes de que este pulse "Actualizar Ahora".
+     * 
+     * Cómo se relaciona con el resto del código:
+     * Es consumido por loadClientAppVersionForUser durante el inicio de sesión y registro.
+     */
+    fun getSavedUserVersion(userId: Long): String {
+        return appPrefs.getString("saved_client_app_version_user_$userId", null) ?: "1.0.0"
+    }
+
+    /**
+     * Interfaz de Versionado: Guarda en almacenamiento persistente la versión aceptada para el usuario.
+     * 
+     * Qué hace:
+     * Almacena de manera permanente la versión en SharedPreferences asociada a la clave del usuario.
+     * 
+     * Por qué se implementa de esta forma:
+     * Asegura que tras pulsar "Actualizar Ahora (Obligatorio)" la versión quede registrada y el aviso
+     * no se repita en inicios de sesión posteriores para la misma versión.
+     * 
+     * Cómo se relaciona con el resto del código:
+     * Se invoca en clientUpdateAppVersion cuando el usuario confirma la actualización.
+     */
+    fun saveUserVersion(userId: Long, version: String) {
+        appPrefs.edit().putString("saved_client_app_version_user_$userId", version).apply()
+    }
+
+    /**
+     * Interfaz de Versionado: Carga en _clientAppVersion la versión correspondiente según el usuario en sesión.
+     * 
+     * Qué hace:
+     * - Si el usuario es ADMIN: asigna la versión más reciente del sistema para que opere con la última versión.
+     * - Si es usuario final: asigna su versión registrada previamente en el dispositivo.
+     * 
+     * Por qué se implementa de esta forma:
+     * Garantiza que si el administrador registra una nueva actualización obligatoria, la versión del cliente
+     * difiera de la última registrada y la Interfaz de Usuario despliegue inmediatamente el diálogo obligatorio.
+     * 
+     * Cómo se relaciona con el resto del código:
+     * Se invoca al iniciar sesión, registrarse o cambiar de usuario.
+     */
+    fun loadClientAppVersionForUser(user: UserEntity) {
+        if (user.role == "ADMIN") {
+            _clientAppVersion.value = _latestAppVersion.value?.versionNumber ?: "1.0.0"
+        } else {
+            _clientAppVersion.value = getSavedUserVersion(user.id)
+        }
+    }
 
     // Control para descartar actualización opcional en la sesión
     private val _dismissedOptionalVersion = MutableStateFlow<String?>(null)
@@ -414,62 +519,70 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }
 
     private fun observeCategories() {
-        viewModelScope.launch {
-            repository.getCategories().collectLatest {
-                _categories.value = it
-            }
-        }
-        viewModelScope.launch {
-            repository.getAllUsers().collectLatest {
-                _allUsers.value = it
-            }
-        }
-        viewModelScope.launch {
-            repository.getAllFinancialInstitutions().collectLatest {
-                _financialInstitutions.value = it
-            }
-        }
-        viewModelScope.launch {
-            repository.getActiveFinancialInstitutions().collectLatest {
-                _activeFinancialInstitutions.value = it
-            }
-        }
-        viewModelScope.launch {
-            repository.getSecurityPolicy().collectLatest { policy ->
-                if (policy != null) {
-                    _securityPolicy.value = policy
+        globalObserverJobs.forEach { it.cancel() }
+        globalObserverJobs.clear()
+        // Espera a que los datos iniciales y usuarios de prueba estén listos antes de abrir lectores en vivo
+        globalObserverJobs += launchSafe {
+            ensureDatabaseReady()
+            globalObserverJobs += launchSafe {
+                repository.getAllAppVersions().collectLatest { versions ->
+                    _appVersions.value = versions
+                    if (versions.none { it.isMandatory && it.versionNumber != "1.0.0" }) {
+                        repository.publishAppVersion(
+                            versionNumber = "2.0.0",
+                            releaseNotes = "• Actualización obligatoria del sistema FinanzIQ\n• Sincronización global de preferencias y tasas de cambio oficiales BCN\n• Nuevas directivas de seguridad bancaria y modo oscuro homogéneo",
+                            isMandatory = true,
+                            publishedBy = "Carlos Mendoza (Admin)"
+                        )
+                    }
                 }
             }
-        }
-        viewModelScope.launch {
-            repository.getAllAuditLogs().collectLatest {
-                _auditLogs.value = it
-            }
-        }
-        viewModelScope.launch {
-            repository.getAllAppVersions().collectLatest { versions ->
-                _appVersions.value = versions
-                // Si la base de datos no contiene una versión obligatoria reciente mayor a 1.0.0,
-                // se inserta de inmediato la versión 2.0.0 para que el usuario de prueba sea bloqueado hasta actualizar
-                if (versions.none { it.isMandatory && it.versionNumber != "1.0.0" }) {
-                    repository.publishAppVersion(
-                        versionNumber = "2.0.0",
-                        releaseNotes = "• Actualización obligatoria del sistema FinanzIQ\n• Sincronización global de preferencias y tasas de cambio oficiales BCN\n• Nuevas directivas de seguridad bancaria y modo oscuro homogéneo",
-                        isMandatory = true,
-                        publishedBy = "Carlos Mendoza (Admin)"
-                    )
+            globalObserverJobs += launchSafe {
+                repository.getCategories().collectLatest {
+                    _categories.value = it
                 }
             }
-        }
-        viewModelScope.launch {
-            repository.getLatestVersionFlow().collectLatest {
-                _latestAppVersion.value = it
+            globalObserverJobs += launchSafe {
+                repository.getAllUsers().collectLatest {
+                    _allUsers.value = it
+                }
             }
-        }
-        viewModelScope.launch {
-            repository.getRecentApiMetrics().collectLatest { metrics ->
-                _apiMetrics.value = metrics
-                recalculateApiStatus(metrics)
+            globalObserverJobs += launchSafe {
+                repository.getAllFinancialInstitutions().collectLatest {
+                    _financialInstitutions.value = it
+                }
+            }
+            globalObserverJobs += launchSafe {
+                repository.getActiveFinancialInstitutions().collectLatest {
+                    _activeFinancialInstitutions.value = it
+                }
+            }
+            globalObserverJobs += launchSafe {
+                repository.getSecurityPolicy().collectLatest { policy ->
+                    if (policy != null) {
+                        _securityPolicy.value = policy
+                    }
+                }
+            }
+            globalObserverJobs += launchSafe {
+                repository.getAllAuditLogs().collectLatest {
+                    _auditLogs.value = it
+                }
+            }
+            globalObserverJobs += launchSafe {
+                repository.getLatestVersionFlow().collectLatest { latest ->
+                    _latestAppVersion.value = latest
+                    // Si el usuario en sesión es Administrador, sincronizar automáticamente su versión en ejecución
+                    if (_currentUser.value?.role == "ADMIN" && latest != null) {
+                        _clientAppVersion.value = latest.versionNumber
+                    }
+                }
+            }
+            globalObserverJobs += launchSafe {
+                repository.getRecentApiMetrics().collectLatest { metrics ->
+                    _apiMetrics.value = metrics
+                    recalculateApiStatus(metrics)
+                }
             }
         }
     }
@@ -477,13 +590,17 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
 
     private fun observeUserData(userId: Long) {
-        viewModelScope.launch {
+        // Cancela observadores de sesiones anteriores para evitar duplicados o fugas en memoria
+        userDataJobs.forEach { it.cancel() }
+        userDataJobs.clear()
+
+        userDataJobs += launchSafe {
             repository.getTransactionsByUser(userId).collectLatest { txs ->
                 _allTransactions.value = txs
                 recalculateAnalytics()
             }
         }
-        viewModelScope.launch {
+        userDataJobs += launchSafe {
             // Observa todos los presupuestos activos del usuario sin filtrado estático de mes
             // para que los límites permanezcan vigentes y no se reinicien al ingresar nuevos gastos
             repository.getAllBudgetsByUser(userId).collectLatest { bList ->
@@ -491,17 +608,17 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                 recalculateAnalytics()
             }
         }
-        viewModelScope.launch {
+        userDataJobs += launchSafe {
             repository.getSavingsGoals(userId).collectLatest { gList ->
                 _savingsGoals.value = gList
             }
         }
-        viewModelScope.launch {
+        userDataJobs += launchSafe {
             repository.getBillReminders(userId).collectLatest { bList ->
                 _bills.value = bList
             }
         }
-        viewModelScope.launch {
+        userDataJobs += launchSafe {
             repository.getFinancialAccounts(userId).collectLatest { accList ->
                 _financialAccounts.value = accList
             }
@@ -525,7 +642,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         if (_lockoutRemainingSeconds.value > 0) {
             val minutes = _lockoutRemainingSeconds.value / 60
             val seconds = _lockoutRemainingSeconds.value % 60
-            val timeFormatted = String.format("%02d:%02d", minutes, seconds)
+            val timeFormatted = String.format(Locale.US, "%02d:%02d", minutes, seconds)
             _authError.value = if (_currentLanguage.value == AppLanguage.SPANISH) {
                 "Has ingresado credenciales incorrectas $maxAttempts veces. Debes esperar ${lockoutSecs / 60} minutos para volver a intentar (Tiempo restante: $timeFormatted)."
             } else {
@@ -549,73 +666,95 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             return false
         }
 
+        if (_isLoggingIn.value) {
+            return false
+        }
+
         var loggedIn = false
-        viewModelScope.launch {
-            // Permite iniciar sesión tanto con correo electrónico como con nombre de usuario
-            val user = repository.getUserByIdentifier(id) ?: repository.getUserByEmail(id)
-            if (user != null && user.passwordHash == pwd) {
-                // Verificar si la cuenta ha sido suspendida o bloqueada por el administrador
-                if (user.isBlocked) {
-                    val reasonSuffix = if (user.statusReason.isNotBlank()) " Motivo: ${user.statusReason}" else ""
-                    _authError.value = if (_currentLanguage.value == AppLanguage.SPANISH) {
-                        "Su cuenta se encuentra suspendida o bloqueada por el administrador.$reasonSuffix"
+        _isLoggingIn.value = true
+        launchSafe {
+            try {
+                // Garantiza que los usuarios iniciales estén creados o reparados antes de consultar
+                ensureDatabaseReady()
+                // Permite iniciar sesión tanto con correo electrónico como con nombre de usuario
+                val user = withContext(Dispatchers.IO) {
+                    repository.getUserByIdentifier(id) ?: repository.getUserByEmail(id)
+                }
+                if (user != null && user.passwordHash == pwd) {
+                    // Verificar si la cuenta ha sido suspendida o bloqueada por el administrador
+                    if (user.isBlocked) {
+                        val reasonSuffix = if (user.statusReason.isNotBlank()) " Motivo: ${user.statusReason}" else ""
+                        _authError.value = if (_currentLanguage.value == AppLanguage.SPANISH) {
+                            "Su cuenta se encuentra suspendida o bloqueada por el administrador.$reasonSuffix"
+                        } else {
+                            "Your account has been suspended or blocked by the administrator.$reasonSuffix"
+                        }
+                        onResult?.invoke(false)
+                        logAuditEvent(
+                            eventType = "LOGIN_FAILED",
+                            severity = "WARNING",
+                            username = user.username.ifBlank { user.email },
+                            description = "Intento de inicio de sesión en cuenta suspendida",
+                            details = "Cuenta suspendida por administrador.$reasonSuffix",
+                            userId = user.id
+                        )
+                        return@launchSafe
+                    }
+
+                    _currentUser.value = user
+                    _failedLoginAttempts.value = 0
+                    _lockoutRemainingSeconds.value = 0
+                    lockoutJob?.cancel()
+                    CountryPhoneData.americanCurrencies.find { it.code in user.preferredCurrency }?.let {
+                        _selectedCurrency.value = it
+                        CurrencyConversionUtil.activeCurrency = it
+                    }
+                    observeUserData(user.id)
+                    loadClientAppVersionForUser(user)
+                    loggedIn = true
+                    onResult?.invoke(true)
+                    logAuditEvent(
+                        eventType = "LOGIN_SUCCESS",
+                        severity = "INFO",
+                        username = user.username.ifBlank { user.email },
+                        description = "Inicio de sesión de usuario exitoso",
+                        details = "Rol: ${user.role}, Moneda preferida: ${user.preferredCurrency}",
+                        userId = user.id
+                    )
+                } else {
+                    _failedLoginAttempts.value += 1
+                    if (_failedLoginAttempts.value >= maxAttempts) {
+                        startLockoutTimer(maxAttempts, lockoutSecs)
                     } else {
-                        "Your account has been suspended or blocked by the administrator.$reasonSuffix"
+                        _authError.value = if (_currentLanguage.value == AppLanguage.SPANISH) {
+                            "Credenciales incorrectas. Verifique su usuario/correo y contraseña. (Intento ${_failedLoginAttempts.value} de $maxAttempts)"
+                        } else {
+                            "Incorrect credentials. Please verify your username/email and password. (Attempt ${_failedLoginAttempts.value} of $maxAttempts)"
+                        }
                     }
                     onResult?.invoke(false)
                     logAuditEvent(
                         eventType = "LOGIN_FAILED",
-                        severity = "WARNING",
-                        username = user.username.ifBlank { user.email },
-                        description = "Intento de inicio de sesión en cuenta suspendida",
-                        details = "Cuenta suspendida por administrador.$reasonSuffix",
-                        userId = user.id
+                        severity = if (_failedLoginAttempts.value >= maxAttempts) "CRITICAL" else "WARNING",
+                        username = id,
+                        description = "Intento fallido de inicio de sesión",
+                        details = if (_failedLoginAttempts.value >= maxAttempts)
+                            "Bloqueo temporal de $lockoutSecs segundos por exceder $maxAttempts intentos fallidos"
+                        else
+                            "Credenciales incorrectas (Intento ${_failedLoginAttempts.value} de $maxAttempts)",
+                        userId = user?.id
                     )
-                    return@launch
                 }
-
-                _currentUser.value = user
-                _failedLoginAttempts.value = 0
-                _lockoutRemainingSeconds.value = 0
-                lockoutJob?.cancel()
-                CountryPhoneData.americanCurrencies.find { it.code in user.preferredCurrency }?.let {
-                    _selectedCurrency.value = it
-                    CurrencyConversionUtil.activeCurrency = it
-                }
-                observeUserData(user.id)
-                loggedIn = true
-                onResult?.invoke(true)
-                logAuditEvent(
-                    eventType = "LOGIN_SUCCESS",
-                    severity = "INFO",
-                    username = user.username.ifBlank { user.email },
-                    description = "Inicio de sesión de usuario exitoso",
-                    details = "Rol: ${user.role}, Moneda preferida: ${user.preferredCurrency}",
-                    userId = user.id
-                )
-            } else {
-                _failedLoginAttempts.value += 1
-                if (_failedLoginAttempts.value >= maxAttempts) {
-                    startLockoutTimer(maxAttempts, lockoutSecs)
+            } catch (e: Exception) {
+                android.util.Log.e("FinanceViewModel", "Error en inicio de sesión", e)
+                _authError.value = if (_currentLanguage.value == AppLanguage.SPANISH) {
+                    "No se pudo completar el inicio de sesión. Intenta nuevamente."
                 } else {
-                    _authError.value = if (_currentLanguage.value == AppLanguage.SPANISH) {
-                        "Credenciales incorrectas. Verifique su usuario/correo y contraseña. (Intento ${_failedLoginAttempts.value} de $maxAttempts)"
-                    } else {
-                        "Incorrect credentials. Please verify your username/email and password. (Attempt ${_failedLoginAttempts.value} of $maxAttempts)"
-                    }
+                    "Could not complete sign in. Please try again."
                 }
                 onResult?.invoke(false)
-                logAuditEvent(
-                    eventType = "LOGIN_FAILED",
-                    severity = if (_failedLoginAttempts.value >= maxAttempts) "CRITICAL" else "WARNING",
-                    username = id,
-                    description = "Intento fallido de inicio de sesión",
-                    details = if (_failedLoginAttempts.value >= maxAttempts)
-                        "Bloqueo temporal de $lockoutSecs segundos por exceder $maxAttempts intentos fallidos"
-                    else
-                        "Credenciales incorrectas (Intento ${_failedLoginAttempts.value} de $maxAttempts)",
-                    userId = user?.id
-                )
+            } finally {
+                _isLoggingIn.value = false
             }
         }
         return loggedIn
@@ -626,7 +765,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         _lockoutRemainingSeconds.value = lockoutSecs
         val mInit = lockoutSecs / 60
         val sInit = lockoutSecs % 60
-        val timeFormattedInit = String.format("%02d:%02d", mInit, sInit)
+        val timeFormattedInit = String.format(Locale.US, "%02d:%02d", mInit, sInit)
         val msg = if (_currentLanguage.value == AppLanguage.SPANISH) {
             "Has ingresado credenciales incorrectas $maxAttempts veces seguidas. Por seguridad, debes esperar $mInit minutos para volver a intentar (Tiempo restante: $timeFormattedInit)."
         } else {
@@ -634,14 +773,14 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         }
         _authError.value = msg
         lockoutJob?.cancel()
-        lockoutJob = viewModelScope.launch {
+        lockoutJob = launchSafe {
             while (_lockoutRemainingSeconds.value > 0) {
                 delay(1000L)
                 _lockoutRemainingSeconds.value -= 1
                 if (_lockoutRemainingSeconds.value > 0) {
                     val m = _lockoutRemainingSeconds.value / 60
                     val s = _lockoutRemainingSeconds.value % 60
-                    val timeFormatted = String.format("%02d:%02d", m, s)
+                    val timeFormatted = String.format(Locale.US, "%02d:%02d", m, s)
                     _authError.value = if (_currentLanguage.value == AppLanguage.SPANISH) {
                         "Has ingresado credenciales incorrectas $maxAttempts veces seguidas. Por seguridad, debes esperar $m minutos para volver a intentar (Tiempo restante: $timeFormatted)."
                     } else {
@@ -724,48 +863,67 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             return
         }
 
-        viewModelScope.launch {
-            // Verificar unicidad del nombre de usuario en la base de datos
-            val existingUsername = repository.getUserByUsername(username)
-            if (existingUsername != null) {
-                _authError.value = "El nombre de usuario ya está registrado en la base de datos. Por favor elija otro."
-                return@launch
-            }
+        if (isRegistering) return
+        isRegistering = true
+        launchSafe {
+            try {
+                ensureDatabaseReady()
+                val cleanDigits = phone.filter { it.isDigit() }
+                val existingCheckError = withContext(Dispatchers.IO) {
+                    // Verificar unicidad del nombre de usuario en la base de datos
+                    if (repository.getUserByUsername(username) != null) {
+                        return@withContext "El nombre de usuario ya está registrado en la base de datos. Por favor elija otro."
+                    }
+                    // Verificar unicidad de correo electrónico
+                    if (repository.getUserByEmail(email) != null) {
+                        return@withContext "El correo electrónico ingresado ya está registrado en la base de datos."
+                    }
+                    // Verificar unicidad de número telefónico
+                    val existingPhone = repository.getUserByPhone(cleanDigits)
+                        ?: repository.getUserByPhone("${countryConfig.dialPrefix}$cleanDigits")
+                    if (existingPhone != null) {
+                        return@withContext "El número de teléfono ya ha sido registrado por otro usuario."
+                    }
+                    null
+                }
+                if (existingCheckError != null) {
+                    _authError.value = existingCheckError
+                    return@launchSafe
+                }
 
-            // Verificar unicidad de correo electrónico
-            val existingEmail = repository.getUserByEmail(email)
-            if (existingEmail != null) {
-                _authError.value = "El correo electrónico ingresado ya está registrado en la base de datos."
-                return@launch
+                val parsedAge = ageStr.trim().toIntOrNull() ?: policy.minAge
+                val newUser = UserEntity(
+                    firstName = firstNames.trim(),
+                    lastName = lastNames.trim(),
+                    username = username.trim().lowercase(Locale.ROOT),
+                    age = parsedAge,
+                    phone = cleanDigits,
+                    phonePrefix = countryConfig.dialPrefix,
+                    email = email.trim().lowercase(Locale.ROOT),
+                    passwordHash = password.trim(),
+                    role = role,
+                    preferredCurrency = "${preferredCurrency.symbol} ${preferredCurrency.code}"
+                )
+                val created = withContext(Dispatchers.IO) {
+                    val newId = repository.registerUser(newUser)
+                    repository.getUserById(newId) ?: newUser.copy(id = newId)
+                }
+                _currentUser.value = created
+                _selectedCurrency.value = preferredCurrency
+                CurrencyConversionUtil.activeCurrency = preferredCurrency
+                observeUserData(created.id)
+                loadClientAppVersionForUser(created)
+                onSuccess()
+            } catch (e: Exception) {
+                android.util.Log.e("FinanceViewModel", "Error en registro de usuario", e)
+                _authError.value = if (_currentLanguage.value == AppLanguage.SPANISH) {
+                    "No se pudo completar el registro. Verifica tus datos e intenta de nuevo."
+                } else {
+                    "Could not complete registration. Please verify your information and try again."
+                }
+            } finally {
+                isRegistering = false
             }
-
-            // Verificar unicidad de número telefónico
-            val cleanDigits = phone.filter { it.isDigit() }
-            val existingPhone = repository.getUserByPhone(cleanDigits) ?: repository.getUserByPhone("${countryConfig.dialPrefix}$cleanDigits")
-            if (existingPhone != null) {
-                _authError.value = "El número de teléfono ya ha sido registrado por otro usuario."
-                return@launch
-            }
-
-            val newUser = UserEntity(
-                firstName = firstNames.trim(),
-                lastName = lastNames.trim(),
-                username = username.trim().lowercase(Locale.ROOT),
-                age = ageStr.toInt(),
-                phone = cleanDigits,
-                phonePrefix = countryConfig.dialPrefix,
-                email = email.trim().lowercase(Locale.ROOT),
-                passwordHash = password.trim(),
-                role = role,
-                preferredCurrency = "${preferredCurrency.symbol} ${preferredCurrency.code}"
-            )
-            val newId = repository.registerUser(newUser)
-            val created = repository.getUserById(newId)
-            _currentUser.value = created
-            _selectedCurrency.value = preferredCurrency
-            CurrencyConversionUtil.activeCurrency = preferredCurrency
-            created?.let { observeUserData(it.id) }
-            onSuccess()
         }
     }
 
@@ -786,37 +944,39 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         note: String = "",
         accountId: Long? = null
     ) {
-        val userId = _currentUser.value?.id ?: 1L
-        viewModelScope.launch {
-            repository.addTransaction(
-                TransactionEntity(
-                    userId = userId,
-                    title = title.trim(),
-                    amount = amount,
-                    type = type,
-                    incomeSubType = incomeSubType,
-                    frequency = frequency,
-                    payoutDate = payoutDate,
-                    destination = destination,
-                    categoryGroup = categoryGroup,
-                    category = category,
-                    subCategory = subCategory,
-                    dateMillis = dateMillis,
-                    note = note.trim(),
-                    accountId = accountId
+        val userId = _currentUser.value?.id ?: return
+        launchSafe {
+            withContext(Dispatchers.IO) {
+                repository.addTransaction(
+                    TransactionEntity(
+                        userId = userId,
+                        title = title.trim(),
+                        amount = amount,
+                        type = type,
+                        incomeSubType = incomeSubType,
+                        frequency = frequency,
+                        payoutDate = payoutDate,
+                        destination = destination,
+                        categoryGroup = categoryGroup,
+                        category = category,
+                        subCategory = subCategory,
+                        dateMillis = dateMillis,
+                        note = note.trim(),
+                        accountId = accountId
+                    )
                 )
-            )
 
-            // Si se especificó una cuenta o billetera activa del usuario, actualizar su saldo individual
-            if (accountId != null && accountId > 0L) {
-                val account = repository.getAccountById(accountId)
-                if (account != null && account.userId == userId) {
-                    val newBalance = if (type == "EXPENSE") {
-                        (account.balance - amount).coerceAtLeast(0.0)
-                    } else {
-                        account.balance + amount
+                // Si se especificó una cuenta o billetera activa del usuario, actualizar su saldo individual
+                if (accountId != null && accountId > 0L) {
+                    val account = repository.getAccountById(accountId)
+                    if (account != null && account.userId == userId) {
+                        val newBalance = if (type == "EXPENSE") {
+                            (account.balance - amount).coerceAtLeast(0.0)
+                        } else {
+                            account.balance + amount
+                        }
+                        repository.updateAccountBalance(accountId, newBalance)
                     }
-                    repository.updateAccountBalance(accountId, newBalance)
                 }
             }
         }
@@ -919,6 +1079,8 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
      * pero preserva intactas las preferencias globales de Idioma y Modo Oscuro/Claro.
      */
     fun logout() {
+        userDataJobs.forEach { it.cancel() }
+        userDataJobs.clear()
         _currentUser.value = null
         _allTransactions.value = emptyList()
         _budgets.value = emptyList()
@@ -932,7 +1094,8 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         _selectedCategoryFilter.value = "Todas"
         _selectedPeriodFilter.value = "Todos"
         _selectedTypeFilter.value = "TODOS"
-        // No reiniciar _clientAppVersion para que la versión actualizada se conserve
+        // Al cerrar sesión se restablece _clientAppVersion al valor base para que el próximo usuario cargue su propia versión
+        _clientAppVersion.value = "1.0.0"
         _dismissedOptionalVersion.value = null
         // Nota: _currentLanguage y _isDarkMode se mantienen intactos tal como lo requiere el sistema
     }
@@ -950,8 +1113,8 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         dateMillis: Long,
         note: String
     ) {
-        val userId = _currentUser.value?.id ?: 1L
-        viewModelScope.launch {
+        val userId = _currentUser.value?.id ?: return
+        launchSafe {
             val actualCategory = if (category.isBlank() || category == "Auto") {
                 repository.autoClassifyCategory(title, type)
             } else category
@@ -971,7 +1134,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun deleteTransaction(id: Long) {
-        viewModelScope.launch {
+        launchSafe {
             val tx = repository.getTransactionById(id)
             if (tx != null) {
                 // Al eliminar un movimiento del historial debe afectar al balance general de la tarjeta
@@ -1087,7 +1250,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
     fun setBudget(category: String, monthlyLimit: Double) {
         val user = _currentUser.value ?: return
-        viewModelScope.launch {
+        launchSafe {
             val existing = _budgets.value.firstOrNull { it.category.equals(category, ignoreCase = true) }
             val currentMonthYear = SimpleDateFormat("yyyy-MM", Locale.US).format(Date())
             if (existing != null) {
@@ -1106,7 +1269,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun deleteBudget(budget: BudgetEntity) {
-        viewModelScope.launch {
+        launchSafe {
             repository.deleteBudget(budget)
         }
     }
@@ -1114,7 +1277,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     // --- Savings Goals ---
     fun addSavingsGoal(title: String, targetAmount: Double, initialSaved: Double, targetDateMillis: Long) {
         val user = _currentUser.value ?: return
-        viewModelScope.launch {
+        launchSafe {
             repository.addSavingsGoal(
                 SavingsGoalEntity(
                     userId = user.id,
@@ -1128,14 +1291,14 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun addFundsToGoal(goal: SavingsGoalEntity, depositAmount: Double) {
-        viewModelScope.launch {
+        launchSafe {
             val updated = goal.copy(currentAmount = goal.currentAmount + depositAmount)
             repository.updateSavingsGoal(updated)
         }
     }
 
     fun deleteSavingsGoal(goal: SavingsGoalEntity) {
-        viewModelScope.launch {
+        launchSafe {
             repository.deleteSavingsGoal(goal)
         }
     }
@@ -1143,7 +1306,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     // --- Bill Reminders ---
     fun addBillReminder(title: String, amount: Double, dueDateMillis: Long, category: String) {
         val user = _currentUser.value ?: return
-        viewModelScope.launch {
+        launchSafe {
             repository.addBillReminder(
                 BillReminderEntity(
                     userId = user.id,
@@ -1181,7 +1344,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             return
         }
 
-        viewModelScope.launch {
+        launchSafe {
             // Actualizar saldo de la cuenta o billetera de origen
             val updatedAccount = originAccount.copy(balance = originAccount.balance - bill.amount)
             repository.updateFinancialAccount(updatedAccount)
@@ -1208,26 +1371,39 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun toggleBillPaid(bill: BillReminderEntity) {
-        viewModelScope.launch {
+        launchSafe {
             repository.updateBillReminder(bill.copy(isPaid = !bill.isPaid))
         }
     }
 
     fun deleteBillReminder(bill: BillReminderEntity) {
-        viewModelScope.launch {
+        launchSafe {
             repository.deleteBillReminder(bill)
         }
     }
 
     // --- Category Management (Admin & Custom) ---
-    fun addCategory(name: String, type: String, iconName: String = "category", colorHex: String = "#0288D1") {
-        viewModelScope.launch {
+    fun addCategory(
+        name: String,
+        type: String,
+        groupType: String = "",
+        iconName: String = "category",
+        colorHex: String = "#0288D1"
+    ) {
+        launchSafe {
+            // Guardamos el grupo general asignado por el admin para que se integre en la jerarquía
+            val storedGroup = if (groupType.isNotBlank()) {
+                groupType
+            } else when (type) {
+                "INCOME" -> com.example.data.model.CategoryGroupType.ACTIVE_INCOME.name
+                else -> com.example.data.model.CategoryGroupType.FIXED_EXPENSE.name
+            }
             repository.addCategory(
                 CategoryEntity(
                     name = name.trim(),
                     type = type,
                     iconName = iconName,
-                    colorHex = colorHex,
+                    colorHex = storedGroup,
                     isCustom = true
                 )
             )
@@ -1235,7 +1411,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun deleteCategory(id: Long) {
-        viewModelScope.launch {
+        launchSafe {
             repository.deleteCategory(id)
         }
     }
@@ -1508,7 +1684,34 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                 description = "Modificación de directivas globales de seguridad",
                 details = "Intentos máx: ${newPolicy.maxLoginAttempts}, Bloqueo: ${newPolicy.lockoutDurationSeconds}s, Long. Contraseña: ${newPolicy.passwordMinLength}-${newPolicy.passwordMaxLength}"
             )
+            // Guardar automáticamente como versión y actualización obligatoria para el usuario final
+            publishAutoSecurityUpdate()
             onResult(true, null)
+        }
+    }
+
+    /**
+     * Publica automáticamente una versión con carácter de obligatoria cada vez que el administrador
+     * actualiza las políticas y directivas de seguridad del sistema.
+     */
+    fun publishAutoSecurityUpdate(onComplete: ((Boolean) -> Unit)? = null) {
+        viewModelScope.launch {
+            val currentLatest = _latestAppVersion.value?.versionNumber ?: "1.0.0"
+            val parts = currentLatest.split(".")
+            val nextVersion = if (parts.size == 3) {
+                val patch = (parts[2].toIntOrNull() ?: 0) + 1
+                "${parts[0]}.${parts[1]}.$patch"
+            } else {
+                "${currentLatest}.1"
+            }
+            val notes = "Actualización obligatoria de seguridad: Nuevas directivas de acceso y políticas de contraseñas aplicadas por administración."
+            publishAppVersion(
+                versionNumber = nextVersion,
+                releaseNotes = notes,
+                isMandatory = true
+            ) { success, _ ->
+                onComplete?.invoke(success)
+            }
         }
     }
 
@@ -1521,8 +1724,8 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         details: String = "",
         userId: Long? = null
     ) {
-        viewModelScope.launch {
-            val clientIp = AuditUtil.getClientIpAddress()
+        launchSafe {
+            val clientIp = withContext(Dispatchers.IO) { AuditUtil.getClientIpAddress() }
             repository.logAuditEvent(
                 eventType = eventType,
                 severity = severity,
@@ -1569,7 +1772,8 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                 description = "Publicación de versión $ver (${if (isMandatory) "Obligatoria" else "Opcional"})",
                 details = "Notas de versión: $notes"
             )
-            // Si quien publica es Administrador, su cliente se actualiza automáticamente a la versión publicada
+            // Si quien publica es Administrador, actualizamos la versión en ejecución de su interfaz de Admin
+            // para que visualice en tiempo real la versión publicada sin sobrescribir las versiones de los usuarios finales.
             if (_currentUser.value?.role == "ADMIN") {
                 _clientAppVersion.value = ver
             }
@@ -1578,7 +1782,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun updateClientAppVersion(newVersion: String) {
-        _clientAppVersion.value = newVersion.trim()
+        clientUpdateAppVersion(newVersion)
     }
 
     fun dismissOptionalUpdate(versionNumber: String) {
@@ -1758,8 +1962,29 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    /**
+     * Interfaz de Versionado: Actualiza la versión de la aplicación en el cliente cuando el usuario pulsa "Actualizar Ahora".
+     * 
+     * Qué hace:
+     * Guarda la versión aceptada específicamente para el ID del usuario en sesión, garantizando que si
+     * en el futuro el administrador publica una nueva actualización obligatoria (manual o automática),
+     * la nueva versión diferirá de la guardada para este usuario y el aviso volverá a desplegarse puntualmente.
+     * 
+     * Por qué se implementa de esta forma:
+     * Cumple de forma estricta la sincronización de versiones requerida: cada actualización obligatoria
+     * debe volver a mostrar el diálogo con el botón de actualizar hasta que el usuario la acepte.
+     * 
+     * Cómo se relaciona con el resto del código:
+     * Se comunica con AppUpdatePromptDialog en MainAppNavigation para desbloquear la interfaz del usuario.
+     */
     fun clientUpdateAppVersion(newVersion: String) {
-        updateClientAppVersion(newVersion)
+        val trimmed = newVersion.trim()
+        _clientAppVersion.value = trimmed
+        val userId = _currentUser.value?.id
+        if (userId != null) {
+            saveUserVersion(userId, trimmed)
+        }
+        appPrefs.edit().putString("saved_client_app_version", trimmed).apply()
     }
 
     // --- Preferencias Generales y Ajustes del Usuario Final ---
@@ -1789,7 +2014,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
         val user = _currentUser.value
         if (user != null) {
-            viewModelScope.launch {
+            launchSafe {
                 val updatedUser = user.copy(
                     preferredCurrency = "${currency.symbol} ${currency.code}"
                 )
@@ -1838,23 +2063,37 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         val isEnglish = _currentLanguage.value == AppLanguage.ENGLISH
         val sym = _selectedCurrency.value.symbol
 
-        viewModelScope.launch {
-            if (AiFinancialAnalyticsEngine.isChartOrAnalyticalRequest(q)) {
-                delay(300)
-                val responseMsg = AiFinancialAnalyticsEngine.processAnalyticalQuery(
-                    currentUser = user,
-                    allTransactions = _allTransactions.value,
-                    query = q,
-                    isEnglish = isEnglish,
-                    selectedCurrency = _selectedCurrency.value
+        launchSafe {
+            try {
+                if (AiFinancialAnalyticsEngine.isChartOrAnalyticalRequest(q)) {
+                    delay(300)
+                    val responseMsg = AiFinancialAnalyticsEngine.processAnalyticalQuery(
+                        currentUser = user,
+                        allTransactions = _allTransactions.value,
+                        query = q,
+                        isEnglish = isEnglish,
+                        selectedCurrency = _selectedCurrency.value
+                    )
+                    _chatMessages.value = _chatMessages.value + responseMsg
+                } else {
+                    val historyPairs = _chatMessages.value.map { it.sender to it.text }
+                    val answer = repository.queryAiAssistant(user.id, q, historyPairs, isEnglish, sym)
+                    val aiMsg = ChatMessage(id = (System.currentTimeMillis() + 1).toString(), sender = "ai", text = answer)
+                    _chatMessages.value = _chatMessages.value + aiMsg
+                }
+            } catch (e: Exception) {
+                val fallbackMsg = if (isEnglish) {
+                    "I could not process that request right now. Please try again."
+                } else {
+                    "No pude procesar esa consulta en este momento. Intenta nuevamente."
+                }
+                _chatMessages.value = _chatMessages.value + ChatMessage(
+                    id = (System.currentTimeMillis() + 1).toString(),
+                    sender = "ai",
+                    text = fallbackMsg,
+                    isErrorNotice = true
                 )
-                _chatMessages.value = _chatMessages.value + responseMsg
-                _isAiLoading.value = false
-            } else {
-                val historyPairs = _chatMessages.value.map { it.sender to it.text }
-                val answer = repository.queryAiAssistant(user.id, q, historyPairs, isEnglish, sym)
-                val aiMsg = ChatMessage(id = (System.currentTimeMillis() + 1).toString(), sender = "ai", text = answer)
-                _chatMessages.value = _chatMessages.value + aiMsg
+            } finally {
                 _isAiLoading.value = false
             }
         }
@@ -1873,7 +2112,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
      * Al deshabilitar, conserva el historial de transacciones intacto pero no permite nuevos cobros activos.
      */
     fun toggleAccountActive(account: FinancialAccountEntity) {
-        viewModelScope.launch {
+        launchSafe {
             repository.setFinancialAccountStatus(account.id, !account.isActive)
         }
     }
@@ -1882,7 +2121,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
      * Elimina definitivamente una cuenta o billetera deshabilitada.
      */
     fun deleteFinancialAccount(account: FinancialAccountEntity) {
-        viewModelScope.launch {
+        launchSafe {
             repository.deleteFinancialAccount(account)
         }
     }
@@ -1995,7 +2234,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             return
         }
 
-        viewModelScope.launch {
+        launchSafe {
             repository.transferBetweenAccounts(
                 originAccount = originAccount,
                 destinationAccount = destinationAccount,
@@ -2077,7 +2316,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             return
         }
 
-        viewModelScope.launch {
+        launchSafe {
             // Deducir de la cuenta/billetera origen
             val updatedAccount = sourceAccount.copy(balance = sourceAccount.balance - amount)
             repository.updateFinancialAccount(updatedAccount)
@@ -2208,7 +2447,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                 return
             }
 
-            viewModelScope.launch {
+            launchSafe {
                 repository.addFinancialAccount(
                     FinancialAccountEntity(
                         userId = user.id,
@@ -2284,7 +2523,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                     return
                 }
 
-                viewModelScope.launch {
+                launchSafe {
                     repository.addFinancialAccount(
                         FinancialAccountEntity(
                             userId = user.id,
@@ -2316,7 +2555,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                     return
                 }
 
-                viewModelScope.launch {
+                launchSafe {
                     repository.addFinancialAccount(
                         FinancialAccountEntity(
                             userId = user.id,

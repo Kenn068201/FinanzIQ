@@ -28,12 +28,12 @@ object AuditUtil {
     fun getClientIpAddress(): String {
         try {
             val interfaces = NetworkInterface.getNetworkInterfaces()
-            while (interfaces.hasMoreElements()) {
+            while (interfaces != null && interfaces.hasMoreElements()) {
                 val networkInterface = interfaces.nextElement()
                 if (networkInterface.isLoopback || !networkInterface.isUp) continue
 
                 val addresses = networkInterface.inetAddresses
-                while (addresses.hasMoreElements()) {
+                while (addresses != null && addresses.hasMoreElements()) {
                     val address = addresses.nextElement()
                     if (!address.isLoopbackAddress && address is Inet4Address) {
                         val host = address.hostAddress

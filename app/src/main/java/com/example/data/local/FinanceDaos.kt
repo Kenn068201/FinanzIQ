@@ -10,13 +10,14 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface UserDao {
-    @Query("SELECT * FROM users WHERE email = :email LIMIT 1")
+    // Normaliza mayúsculas y espacios para que el acceso de prueba y manual no falle por formato
+    @Query("SELECT * FROM users WHERE LOWER(TRIM(email)) = :email LIMIT 1")
     suspend fun getUserByEmail(email: String): UserEntity?
 
-    @Query("SELECT * FROM users WHERE username = :username LIMIT 1")
+    @Query("SELECT * FROM users WHERE LOWER(TRIM(username)) = :username LIMIT 1")
     suspend fun getUserByUsername(username: String): UserEntity?
 
-    @Query("SELECT * FROM users WHERE email = :identifier OR username = :identifier LIMIT 1")
+    @Query("SELECT * FROM users WHERE LOWER(TRIM(email)) = :identifier OR LOWER(TRIM(username)) = :identifier LIMIT 1")
     suspend fun getUserByIdentifier(identifier: String): UserEntity?
 
     @Query("SELECT * FROM users WHERE phone = :phone LIMIT 1")
@@ -203,6 +204,9 @@ interface FinancialInstitutionDao {
 
     @Delete
     suspend fun deleteInstitution(institution: FinancialInstitutionEntity)
+
+    @Query("SELECT COUNT(*) FROM financial_institutions")
+    suspend fun getInstitutionCount(): Int
 }
 
 /**
@@ -263,6 +267,9 @@ interface AppVersionDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertVersion(version: AppVersionEntity): Long
+
+    @Query("SELECT COUNT(*) FROM app_versions")
+    suspend fun getVersionCount(): Int
 }
 
 /**

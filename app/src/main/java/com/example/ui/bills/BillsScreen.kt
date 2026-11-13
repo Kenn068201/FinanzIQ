@@ -618,8 +618,8 @@ fun AddBillDialog(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                if (errorMsg != null) {
-                    ErrorWarningBox(message = errorMsg!!)
+                errorMsg?.let { msg ->
+                    ErrorWarningBox(message = msg)
                 }
 
                 // Descripción de la factura o servicio
@@ -814,8 +814,8 @@ fun PayBillDialog(
                     }
                 }
 
-                if (errorMsg != null) {
-                    ErrorWarningBox(message = errorMsg!!)
+                errorMsg?.let { msg ->
+                    ErrorWarningBox(message = msg)
                 }
 
                 // Descripción Automática (No modificable)
@@ -914,15 +914,16 @@ fun PayBillDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    if (selectedAccount == null) {
+                    val account = selectedAccount
+                    if (account == null) {
                         errorMsg = Localization.t("error_bill_pay_account_required", lang)
                         return@Button
                     }
-                    if (selectedAccount!!.balance < bill.amount) {
+                    if (account.balance < bill.amount) {
                         errorMsg = Localization.t("error_transfer_insufficient_funds", lang)
                         return@Button
                     }
-                    onConfirmPayment(selectedAccount!!, selectedCategory)
+                    onConfirmPayment(account, selectedCategory)
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = FinanceSuccess),
                 modifier = Modifier.testTag("confirm_pay_bill_button")

@@ -42,9 +42,9 @@ object PdfReportGenerator {
 
         // Documento PDF estándar A4 (595 x 842 puntos)
         val document = PdfDocument()
-        val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create()
-        val page = document.startPage(pageInfo)
-        val canvas: Canvas = page.canvas
+        var pageNumber = 1
+        var page = document.startPage(PdfDocument.PageInfo.Builder(595, 842, pageNumber).create())
+        var canvas: Canvas = page.canvas
 
         // Configuración de pinceles y tipografías
         val paintTitle = Paint().apply {
@@ -205,9 +205,16 @@ object PdfReportGenerator {
         canvas.drawText("Saldo Actual", colX + 8f, currentY + 15f, paintTableHeader)
         currentY += 22f
 
-        // Filas para cada herramienta asociada al usuario
+        // Filas para cada herramienta asociada al usuario con salto de página automático si supera el límite vertical
         var isEven = false
         for (account in accounts) {
+            if (currentY > 750f) {
+                document.finishPage(page)
+                pageNumber += 1
+                page = document.startPage(PdfDocument.PageInfo.Builder(595, 842, pageNumber).create())
+                canvas = page.canvas
+                currentY = 48f
+            }
             val bgPaint = if (isEven) paintRowBgEven else paintRowBgOdd
             isEven = !isEven
 
@@ -286,20 +293,29 @@ object PdfReportGenerator {
 
     /**
      * Lanza la acción de compartir / abrir el documento PDF generado utilizando FileProvider.
+     * Qué hace: abre el selector del sistema de forma segura sin cerrar la app si falla.
+     * Por qué se implementa así: en algunos teléfonos sin visor PDF instalado o restricciones
+     * de fabricante, startActivity puede lanzar una excepción fatal.
      */
-    fun openOrSharePdf(context: Context, pdfFile: File) {
-        val authority = "${context.packageName}.fileprovider"
-        val contentUri = FileProvider.getUriForFile(context, authority, pdfFile)
+    fun openOrSharePdf(context: Context, pdfFile: File): Boolean {
+        return try {
+            val authority = "${context.packageName}.fileprovider"
+            val contentUri = FileProvider.getUriForFile(context, authority, pdfFile)
 
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "application/pdf"
-            putExtra(Intent.EXTRA_STREAM, contentUri)
-            putExtra(Intent.EXTRA_SUBJECT, "Reporte Financiero - FinanzIQ")
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "application/pdf"
+                putExtra(Intent.EXTRA_STREAM, contentUri)
+                putExtra(Intent.EXTRA_SUBJECT, "Reporte Financiero - FinanzIQ")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+
+            val chooser = Intent.createChooser(intent, "Descargar / Compartir Reporte PDF")
+            chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(chooser)
+            true
+        } catch (e: Exception) {
+            android.util.Log.e("PdfReportGenerator", "Error al compartir PDF", e)
+            false
         }
-
-        val chooser = Intent.createChooser(intent, "Descargar / Compartir Reporte PDF")
-        chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        context.startActivity(chooser)
     }
 }

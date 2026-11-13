@@ -188,8 +188,8 @@ fun ManageFinancialToolScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Recuadro rojo de advertencias y errores establecido para la aplicación
-            if (errorMessage != null) {
-                ErrorWarningBox(message = errorMessage!!)
+            errorMessage?.let { msg ->
+                ErrorWarningBox(message = msg)
             }
 
             // Aviso sobre Instituciones Financieras deshabilitadas por el Administrador
@@ -636,14 +636,15 @@ fun ManageFinancialToolScreen(
                             errorMessage = "La billetera seleccionada (${walletEntity.fullName}) ha sido deshabilitada por el administrador y no admite nuevas vinculaciones. Motivo: ${walletEntity.statusReason}"
                             return@Button
                         }
-                        if (selectedLinkedAccount == null) {
+                        val linkedAcc = selectedLinkedAccount
+                        if (linkedAcc == null) {
                             errorMessage = Localization.t("error_wallet_linked_missing", lang)
                             return@Button
                         }
                         val targetBrand = walletEntity?.supportedBankBrands?.ifBlank { null }
                             ?: normalizeBankBrand(selectedWalletProvider)
                         val walletBrand = normalizeBankBrand(targetBrand)
-                        val linkedAccountBrand = normalizeBankBrand(selectedLinkedAccount!!.bankName)
+                        val linkedAccountBrand = normalizeBankBrand(linkedAcc.bankName)
                         if (!linkedAccountBrand.contains(walletBrand, ignoreCase = true) && !walletBrand.contains(linkedAccountBrand, ignoreCase = true)) {
                             errorMessage = "Para vincular esta billetera (${selectedWalletProvider}) debe seleccionar una cuenta bancaria perteneciente a $targetBrand."
                             return@Button

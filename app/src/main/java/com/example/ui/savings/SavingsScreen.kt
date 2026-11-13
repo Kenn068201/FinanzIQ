@@ -85,6 +85,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.data.local.FinancialAccountEntity
 import com.example.data.local.SavingsGoalEntity
+import com.example.data.model.CategoryDataHierarchy
 import com.example.ui.FinanceViewModel
 import com.example.ui.components.ErrorWarningBox
 import com.example.ui.components.formatCurrency
@@ -408,7 +409,10 @@ fun SavingsScreen(
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
-                                        text = "(${currency.symbol} ${String.format(Locale.US, "%,.2f", simMonthly)} × $simMonths meses = ${currency.symbol} ${String.format(Locale.US, "%,.2f", currentPrincipalTotal)})",
+                                        text = if (lang == AppLanguage.SPANISH)
+                                            "(${currency.symbol} ${String.format(Locale.US, "%,.2f", simMonthly)} × $simMonths meses = ${currency.symbol} ${String.format(Locale.US, "%,.2f", currentPrincipalTotal)})"
+                                        else
+                                            "(${currency.symbol} ${String.format(Locale.US, "%,.2f", simMonthly)} × $simMonths months = ${currency.symbol} ${String.format(Locale.US, "%,.2f", currentPrincipalTotal)})",
                                         style = MaterialTheme.typography.bodySmall.copy(
                                             color = Color(0xFF166534),
                                             fontWeight = FontWeight.SemiBold
@@ -608,7 +612,10 @@ fun SavingsScreen(
                             val startDate = SimpleDateFormat("dd MMM, yyyy", Locale.getDefault()).format(Date())
 
                             Text(
-                                text = "🗓️ Período estimado: del $startDate al $estimatedEndDate ($currentDailyDays días)",
+                                text = if (lang == AppLanguage.SPANISH)
+                                    "🗓️ Período estimado: del $startDate al $estimatedEndDate ($currentDailyDays días)"
+                                else
+                                    "🗓️ Estimated period: from $startDate to $estimatedEndDate ($currentDailyDays days)",
                                 style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF64748B))
                             )
 
@@ -661,7 +668,7 @@ fun SavingsScreen(
                                             )
                                             Spacer(modifier = Modifier.width(8.dp))
                                             Text(
-                                                text = "🎯 Resultado Dinámico de Ahorro Diario",
+                                                text = if (lang == AppLanguage.SPANISH) "🎯 Resultado Dinámico de Ahorro Diario" else "🎯 Dynamic Daily Savings Result",
                                                 style = MaterialTheme.typography.labelMedium.copy(
                                                     fontWeight = FontWeight.Bold,
                                                     color = Color(0xFF14532D)
@@ -670,7 +677,10 @@ fun SavingsScreen(
                                         }
                                         Spacer(modifier = Modifier.height(8.dp))
                                         Text(
-                                            text = "Ahorrando ${currency.symbol} ${String.format(Locale.US, "%,.2f", currentDailyAmount)} al día durante $currentDailyDays días, acumularás un total de ${currency.symbol} ${String.format(Locale.US, "%,.2f", dynamicDailyTotal)}.",
+                                            text = if (lang == AppLanguage.SPANISH)
+                                                "Ahorrando ${currency.symbol} ${String.format(Locale.US, "%,.2f", currentDailyAmount)} al día durante $currentDailyDays días, acumularás un total de ${currency.symbol} ${String.format(Locale.US, "%,.2f", dynamicDailyTotal)}."
+                                            else
+                                                "Saving ${currency.symbol} ${String.format(Locale.US, "%,.2f", currentDailyAmount)} per day for $currentDailyDays days, you will accumulate a total of ${currency.symbol} ${String.format(Locale.US, "%,.2f", dynamicDailyTotal)}.",
                                             style = MaterialTheme.typography.bodyMedium.copy(
                                                 fontWeight = FontWeight.Bold,
                                                 color = Color(0xFF14532D)
@@ -678,7 +688,10 @@ fun SavingsScreen(
                                         )
                                         Spacer(modifier = Modifier.height(6.dp))
                                         Text(
-                                            text = "(${currency.symbol} ${String.format(Locale.US, "%,.2f", currentDailyAmount)} diario × $currentDailyDays días = ${currency.symbol} ${String.format(Locale.US, "%,.2f", dynamicDailyTotal)} acumulados)",
+                                            text = if (lang == AppLanguage.SPANISH)
+                                                "(${currency.symbol} ${String.format(Locale.US, "%,.2f", currentDailyAmount)} diario × $currentDailyDays días = ${currency.symbol} ${String.format(Locale.US, "%,.2f", dynamicDailyTotal)} acumulados)"
+                                            else
+                                                "(${currency.symbol} ${String.format(Locale.US, "%,.2f", currentDailyAmount)} daily × $currentDailyDays days = ${currency.symbol} ${String.format(Locale.US, "%,.2f", dynamicDailyTotal)} accumulated)",
                                             style = MaterialTheme.typography.bodySmall.copy(
                                                 color = Color(0xFF166534),
                                                 fontWeight = FontWeight.SemiBold
@@ -963,7 +976,7 @@ fun SavingsGoalProgressCard(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text(
-                            text = goal.title,
+                            text = CategoryDataHierarchy.getTransactionTitleDisplayName(goal.title, lang),
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -1081,8 +1094,8 @@ fun AddSavingsGoalModal(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                if (errorMsg != null) {
-                    ErrorWarningBox(message = errorMsg!!)
+                errorMsg?.let { msg ->
+                    ErrorWarningBox(message = msg)
                 }
 
                 OutlinedTextField(
@@ -1225,8 +1238,8 @@ fun DepositToGoalWithAccountModal(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 // Mensaje de Error
-                if (errorMsg != null) {
-                    ErrorWarningBox(message = errorMsg!!)
+                errorMsg?.let { msg ->
+                    ErrorWarningBox(message = msg)
                     Spacer(modifier = Modifier.height(12.dp))
                 }
 
@@ -1259,18 +1272,19 @@ fun DepositToGoalWithAccountModal(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Column(modifier = Modifier.weight(1f)) {
+                                    val account = selectedAccount
                                     Text(
-                                        text = if (selectedAccount != null) {
-                                            "${selectedAccount!!.bankName} • ${selectedAccount!!.accountType} (${selectedAccount!!.accountNumber})"
+                                        text = if (account != null) {
+                                            "${account.bankName} • ${account.accountType} (${account.accountNumber})"
                                         } else Localization.t("select_account_placeholder", lang),
                                         style = MaterialTheme.typography.bodyMedium,
                                         fontWeight = FontWeight.SemiBold
                                     )
-                                    if (selectedAccount != null) {
+                                    if (account != null) {
                                         Text(
-                                            text = "${Localization.t("available_prefix", lang)} ${formatCurrency(selectedAccount!!.balance)}",
+                                            text = "${Localization.t("available_prefix", lang)} ${formatCurrency(account.balance)}",
                                             style = MaterialTheme.typography.bodySmall,
-                                            color = if (selectedAccount!!.balance > 0) FinanceSuccess else FinanceError
+                                            color = if (account.balance > 0) FinanceSuccess else FinanceError
                                         )
                                     }
                                 }
