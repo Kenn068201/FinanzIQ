@@ -1,5 +1,6 @@
 package com.example.ui.analytics
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -23,9 +24,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -36,6 +41,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import com.example.ui.reports.ExportPdfReportDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -63,6 +69,7 @@ import com.example.ui.theme.FinancePrimary
 import com.example.ui.theme.FinanceSecondaryContainer
 import com.example.ui.theme.FinanceSuccess
 import com.example.ui.theme.FinanceSuccessContainer
+import com.example.util.Localization
 import java.util.Calendar
 import java.util.Locale
 
@@ -88,11 +95,13 @@ fun AnalyticsScreen(
     viewModel: FinanceViewModel,
     modifier: Modifier = Modifier
 ) {
+    val lang by viewModel.currentLanguage.collectAsState()
     val allTransactions by viewModel.allTransactions.collectAsState()
 
     var selectedPeriod by remember { mutableStateOf("Mensual") } // "Semanal", "Mensual", "Anual"
     var selectedGroupFilter by remember { mutableStateOf("Todos") } // "Todos", "Gastos Fijos", "Gastos Variables", "Pago de Deudas"
     var selectedCategoryForSubDetail by remember { mutableStateOf<String?>(null) }
+    var showExportPdfDialog by remember { mutableStateOf(false) }
 
     // Calcular los ingresos y gastos según el período
     val now = Calendar.getInstance()
@@ -126,8 +135,8 @@ fun AnalyticsScreen(
     val categoryIconMap = allExpenseCategories.associate { it.nameEs to it.iconEmoji }
     val subcategoryIconMap = allExpenseCategories.flatMap { it.subcategories }.associate { it.nameEs to it.iconEmoji }
 
-    // Crear un modelo jerárquico de gastos
-    val categorySpendings = remember(periodExpenses, selectedGroupFilter) {
+    // Crear un modelo jerárquico de gastos reactivo en tiempo real según los gastos ingresados
+    val categorySpendings = remember(periodExpenses, selectedGroupFilter, totalExpenseAmount) {
         val groupedByCategory = periodExpenses.groupBy { it.category }
         groupedByCategory.map { (catName, txs) ->
             val catTotal = txs.sumOf { it.amount }
@@ -159,22 +168,52 @@ fun AnalyticsScreen(
 
     val maxCategoryAmount = categorySpendings.maxOfOrNull { it.totalAmount }?.coerceAtLeast(1.0) ?: 1.0
 
+    // Interfaz de Análisis Financiero: Se adaptan los contenedores y tipografías al tema dinámico (Light/Dark)
+    // para asegurar homogeneidad visual con el resto de módulos de la aplicación.
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Text(
-                        text = "Análisis Financiero",
+                        text = Localization.t("analytics_title", lang),
                         style = MaterialTheme.typography.titleLarge.copy(
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF0F172A)
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     )
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = FinanceBackground)
+                actions = {
+                    FilledTonalButton(
+                        onClick = { showExportPdfDialog = true },
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.8f),
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .padding(end = 8.dp)
+                            .testTag("analytics_export_pdf_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PictureAsPdf,
+                            contentDescription = "Exportar PDF",
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (lang == com.example.util.AppLanguage.ENGLISH) "Export PDF" else "Exportar PDF",
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
             )
         },
-        containerColor = FinanceBackground,
+        containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier.fillMaxSize()
     ) { innerPadding ->
         LazyColumn(
@@ -184,56 +223,141 @@ fun AnalyticsScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Selector de período
+            // Tarjeta destacada de Exportar Reporte PDF adaptada a colorScheme.surface
             item {
-                Row(
+                Card(
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showExportPdfDialog = true }
+                        .testTag("analytics_pdf_card")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(MaterialTheme.colorScheme.errorContainer),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PictureAsPdf,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = if (lang == com.example.util.AppLanguage.ENGLISH) "Export PDF Financial Report" else "Exportar Reporte Financiero PDF",
+                                    style = MaterialTheme.typography.titleSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                )
+                                Text(
+                                    text = if (lang == com.example.util.AppLanguage.ENGLISH)
+                                        "2 Tables: Balance & Breakdown by Accounts"
+                                    else
+                                        "2 Tablas: Balance General y Cuentas Vinculadas",
+                                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+                                )
+                            }
+                        }
+                        Button(
+                            onClick = { showExportPdfDialog = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text(
+                                text = if (lang == com.example.util.AppLanguage.ENGLISH) "Export" else "Exportar",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onError
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Selector de período horizontal deslizable (LazyRow)
+            // Permite desplazamiento en pantallas de cualquier tamaño y previene compresión o salto de línea en los botones de filtro
+            item {
+                LazyRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    listOf("Semanal", "Mensual", "Anual").forEach { period ->
+                    val periodOptions = listOf(
+                        "Semanal" to "analytics_period_weekly",
+                        "Mensual" to "analytics_period_monthly",
+                        "Anual" to "analytics_period_yearly"
+                    )
+                    items(periodOptions) { (periodKey, labelKey) ->
+                        val translatedPeriod = Localization.t(labelKey, lang)
                         FilterChip(
-                            selected = selectedPeriod == period,
-                            onClick = { selectedPeriod = period },
-                            label = { Text("Balance $period") },
+                            selected = selectedPeriod == periodKey,
+                            onClick = { selectedPeriod = periodKey },
+                            label = {
+                                Text(
+                                    text = Localization.t("analytics_balance_period", lang, translatedPeriod),
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    letterSpacing = (-0.2).sp
+                                )
+                            },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = FinanceSecondaryContainer,
                                 selectedLabelColor = FinancePrimary
                             ),
-                            modifier = Modifier.testTag("period_tab_$period")
+                            modifier = Modifier.testTag("period_tab_$periodKey")
                         )
                     }
                 }
             }
 
-            // Ficha de ingresos y gastos
+            // Ficha de ingresos y gastos con soporte estricto para modo oscuro
             item {
                 Card(
                     shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(18.dp)) {
+                        val activePeriodLabel = when (selectedPeriod) {
+                            "Semanal" -> Localization.t("analytics_period_weekly", lang)
+                            "Anual" -> Localization.t("analytics_period_yearly", lang)
+                            else -> Localization.t("analytics_period_monthly", lang)
+                        }
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "Flujo de Dinero ($selectedPeriod)",
+                                text = Localization.t("analytics_cashflow_title", lang, activePeriodLabel),
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF1E293B)
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                             )
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
-                                color = if (periodBalance >= 0) FinanceSuccessContainer else Color(0xFFFEE2E2)
+                                color = if (periodBalance >= 0) FinanceSuccessContainer else MaterialTheme.colorScheme.errorContainer
                             ) {
                                 Text(
-                                    text = if (periodBalance >= 0) "Superávit" else "Déficit",
+                                    text = if (periodBalance >= 0) Localization.t("analytics_surplus", lang) else Localization.t("analytics_deficit", lang),
                                     style = MaterialTheme.typography.labelMedium.copy(
-                                        color = if (periodBalance >= 0) FinanceSuccess else FinanceError,
+                                        color = if (periodBalance >= 0) FinanceSuccess else MaterialTheme.colorScheme.onErrorContainer,
                                         fontWeight = FontWeight.Bold
                                     ),
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
@@ -249,7 +373,7 @@ fun AnalyticsScreen(
                                 .fillMaxWidth()
                                 .height(16.dp)
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(Color(0xFFE2E8F0))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
                         ) {
                             if (incomeRatio > 0) {
                                 Box(
@@ -280,7 +404,10 @@ fun AnalyticsScreen(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(FinanceSuccess))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Ingresos (${String.format(Locale.US, "%.0f", incomeRatio * 100)}%)", style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF64748B)))
+                                    Text(
+                                        Localization.t("analytics_incomes_pct", lang, String.format(Locale.US, "%.0f", incomeRatio * 100)),
+                                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    )
                                 }
                                 Text(formatCordobas(periodIncome), style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = FinanceSuccess))
                             }
@@ -289,7 +416,10 @@ fun AnalyticsScreen(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(FinanceError))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Gastos (${String.format(Locale.US, "%.0f", expenseRatio * 100)}%)", style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF64748B)))
+                                    Text(
+                                        Localization.t("analytics_expenses_pct", lang, String.format(Locale.US, "%.0f", expenseRatio * 100)),
+                                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    )
                                 }
                                 Text(formatCordobas(totalExpenseAmount), style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = FinanceError))
                             }
@@ -299,7 +429,7 @@ fun AnalyticsScreen(
 
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = FinanceSecondaryContainer.copy(alpha = 0.5f),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
@@ -310,8 +440,8 @@ fun AnalyticsScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "Balance Neto del Periodo:",
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium, color = Color(0xFF0F172A))
+                                    text = Localization.t("analytics_net_balance", lang),
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
                                 )
                                 Text(
                                     text = formatCordobas(periodBalance),
@@ -328,21 +458,36 @@ fun AnalyticsScreen(
 
             // SECCIÓN DE GRÁFICOS DE BARRAS ANIDADAS VERTICALES
             item {
-                SectionHeader(title = "Gráfico de Barras Verticales: Categorías y Subcategorías")
+                SectionHeader(title = Localization.t("analytics_vertical_bars_header", lang))
             }
 
-            // Chips de filtro agrupados
+            // Chips de filtro agrupados en fila horizontal deslizable
             item {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    val filterOptions = listOf("Todos", "Gastos Fijos", "Gastos Variables", "Pago de Deudas")
-                    items(filterOptions) { filter ->
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    val filterOptions = listOf(
+                        "Todos" to "analytics_group_all",
+                        "Gastos Fijos" to "analytics_group_fixed",
+                        "Gastos Variables" to "analytics_group_variable",
+                        "Pago de Deudas" to "analytics_group_debt"
+                    )
+                    items(filterOptions) { (filterVal, filterKey) ->
                         FilterChip(
-                            selected = selectedGroupFilter == filter,
+                            selected = selectedGroupFilter == filterVal,
                             onClick = {
-                                selectedGroupFilter = filter
+                                selectedGroupFilter = filterVal
                                 selectedCategoryForSubDetail = null
                             },
-                            label = { Text(filter) },
+                            label = {
+                                Text(
+                                    text = Localization.t(filterKey, lang),
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    letterSpacing = (-0.2).sp
+                                )
+                            },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = FinanceSecondaryContainer,
                                 selectedLabelColor = FinancePrimary
@@ -356,7 +501,8 @@ fun AnalyticsScreen(
             item {
                 Card(
                     shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -375,16 +521,16 @@ fun AnalyticsScreen(
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "Gasto por Categoría (Barras Verticales)",
+                                    text = Localization.t("analytics_expense_by_cat", lang),
                                     style = MaterialTheme.typography.titleSmall.copy(
                                         fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF0F172A)
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
                                 )
                             }
                             Text(
-                                text = "Toca para ver subcategorías",
-                                style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF64748B), fontSize = 11.sp)
+                                text = Localization.t("analytics_tap_subcategories", lang),
+                                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
                             )
                         }
 
@@ -398,8 +544,8 @@ fun AnalyticsScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = "No hay registros de gastos para este filtro.",
-                                    style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF94A3B8))
+                                    text = Localization.t("analytics_no_expenses_filter", lang),
+                                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 )
                             }
                         } else {
@@ -429,7 +575,7 @@ fun AnalyticsScreen(
                                             text = "${String.format(Locale.US, "%.0f", item.percentageOfTotal)}%",
                                             style = MaterialTheme.typography.labelSmall.copy(
                                                 fontWeight = FontWeight.Bold,
-                                                color = if (isSelected) FinancePrimary else Color(0xFF64748B),
+                                                color = if (isSelected) FinancePrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                                                 fontSize = 10.sp
                                             )
                                         )
@@ -470,15 +616,15 @@ fun AnalyticsScreen(
 
                                         Spacer(modifier = Modifier.height(6.dp))
 
-                                        // Categoría: Emoji y nombre abreviado
+                                        // Categoría: Emoji y nombre abreviado traducido
                                         Text(
                                             text = item.icon,
                                             style = MaterialTheme.typography.titleMedium
                                         )
                                         Text(
-                                            text = item.categoryName,
+                                            text = CategoryDataHierarchy.getCategoryDisplayName(item.categoryName, lang),
                                             style = MaterialTheme.typography.labelSmall.copy(
-                                                color = if (isSelected) FinancePrimary else Color(0xFF334155),
+                                                color = if (isSelected) FinancePrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                                 fontSize = 10.sp,
                                                 textAlign = TextAlign.Center
@@ -498,7 +644,7 @@ fun AnalyticsScreen(
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Surface(
                                     shape = RoundedCornerShape(14.dp),
-                                    color = Color(0xFFF8FAFC),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Column(modifier = Modifier.padding(14.dp)) {
@@ -508,10 +654,11 @@ fun AnalyticsScreen(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text(
-                                                text = "${selectedCat.icon} Subcategorías de ${selectedCat.categoryName}:",
+                                                // Traducción dinámica del nombre de la categoría padre
+                                                text = Localization.t("analytics_subcategories_of", lang, selectedCat.icon, CategoryDataHierarchy.getCategoryDisplayName(selectedCat.categoryName, lang)),
                                                 style = MaterialTheme.typography.titleSmall.copy(
                                                     fontWeight = FontWeight.Bold,
-                                                    color = Color(0xFF0F172A)
+                                                    color = MaterialTheme.colorScheme.onSurface
                                                 )
                                             )
                                             Text(
@@ -527,8 +674,8 @@ fun AnalyticsScreen(
 
                                         if (selectedCat.subcategories.isEmpty()) {
                                             Text(
-                                                text = "No se registraron subcategorías específicas para esta categoría.",
-                                                style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF64748B))
+                                                text = Localization.t("analytics_no_subcategories", lang),
+                                                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                                             )
                                         } else {
                                             // Mini barras verticales anidadas para las subcategorías
@@ -568,11 +715,12 @@ fun AnalyticsScreen(
                                                             style = MaterialTheme.typography.labelMedium
                                                         )
                                                         Text(
-                                                            text = sub.name,
+                                                            // Traducción dinámica de la subcategoría
+                                                            text = CategoryDataHierarchy.getCategoryDisplayName(sub.name, lang),
                                                             style = MaterialTheme.typography.labelSmall.copy(
                                                                 fontSize = 9.sp,
                                                                 textAlign = TextAlign.Center,
-                                                                color = Color(0xFF334155)
+                                                                color = MaterialTheme.colorScheme.onSurfaceVariant
                                                             ),
                                                             maxLines = 2,
                                                             overflow = TextOverflow.Ellipsis
@@ -591,14 +739,14 @@ fun AnalyticsScreen(
 
             // Lista detallada del desglose de gastos por categoría
             item {
-                SectionHeader(title = "Detalle Completo de Gastos")
+                SectionHeader(title = Localization.t("analytics_full_details_header", lang))
             }
 
             if (categorySpendings.isEmpty()) {
                 item {
                     Text(
-                        text = "No hay datos de gastos registrados para mostrar distribución.",
-                        style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF6B7280))
+                        text = Localization.t("analytics_no_expense_data", lang),
+                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                     )
                 }
             } else {
@@ -607,7 +755,8 @@ fun AnalyticsScreen(
 
                     Card(
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -624,15 +773,23 @@ fun AnalyticsScreen(
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Column {
                                         Text(
-                                            text = item.categoryName,
+                                            // Traducción dinámica de la categoría
+                                            text = CategoryDataHierarchy.getCategoryDisplayName(item.categoryName, lang),
                                             style = MaterialTheme.typography.bodyMedium.copy(
                                                 fontWeight = FontWeight.Bold,
-                                                color = Color(0xFF0F172A)
+                                                color = MaterialTheme.colorScheme.onSurface
                                             )
                                         )
+                                        // Traducción dinámica del grupo de gasto
+                                        val groupDisplay = when {
+                                            item.group.contains("Fijo", true) -> Localization.t("group_fixed_expenses", lang)
+                                            item.group.contains("Variable", true) || item.group.contains("Deseo", true) -> Localization.t("group_variable_expenses", lang)
+                                            item.group.contains("Deuda", true) -> Localization.t("group_debt_payments", lang)
+                                            else -> item.group
+                                        }
                                         Text(
-                                            text = item.group,
-                                            style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF64748B), fontSize = 11.sp)
+                                            text = groupDisplay,
+                                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
                                         )
                                     }
                                 }
@@ -648,14 +805,14 @@ fun AnalyticsScreen(
                                         )
                                         Text(
                                             text = "${String.format(Locale.US, "%.1f", item.percentageOfTotal)}%",
-                                            style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF64748B))
+                                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                                         )
                                     }
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Icon(
                                         imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                                         contentDescription = null,
-                                        tint = Color(0xFF94A3B8),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.size(20.dp)
                                     )
                                 }
@@ -666,28 +823,28 @@ fun AnalyticsScreen(
                             LinearProgressIndicator(
                                 progress = { (item.percentageOfTotal / 100).toFloat().coerceIn(0f, 1f) },
                                 color = FinancePrimary,
-                                trackColor = Color(0xFFE2E8F0),
+                                trackColor = MaterialTheme.colorScheme.surfaceVariant,
                                 strokeCap = StrokeCap.Round,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(6.dp)
                             )
 
-                            // Si está expandido y tiene subcategorías, muéstralas
+                            // Si está expandido y tiene subcategorías, muéstralas adaptadas al tema
                             if (isExpanded && item.subcategories.isNotEmpty()) {
                                 Spacer(modifier = Modifier.height(12.dp))
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .background(Color(0xFFF8FAFC), shape = RoundedCornerShape(10.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), shape = RoundedCornerShape(10.dp))
                                         .padding(10.dp),
                                     verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     Text(
-                                        text = "Subcategorías:",
+                                        text = Localization.t("analytics_subcategories_label", lang),
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF475569)
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     )
                                     item.subcategories.forEach { sub ->
@@ -697,8 +854,9 @@ fun AnalyticsScreen(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text(
-                                                text = "${sub.icon} ${sub.name}",
-                                                style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF1E293B))
+                                                // Traducción dinámica de la subcategoría
+                                                text = "${sub.icon} ${CategoryDataHierarchy.getCategoryDisplayName(sub.name, lang)}",
+                                                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurface)
                                             )
                                             Text(
                                                 text = "${formatCordobas(sub.amount)} (${String.format(Locale.US, "%.0f", sub.percentageOfCategory)}%)",
@@ -717,6 +875,13 @@ fun AnalyticsScreen(
             }
 
             item { Spacer(modifier = Modifier.height(32.dp)) }
+        }
+
+        if (showExportPdfDialog) {
+            ExportPdfReportDialog(
+                viewModel = viewModel,
+                onDismiss = { showExportPdfDialog = false }
+            )
         }
     }
 }

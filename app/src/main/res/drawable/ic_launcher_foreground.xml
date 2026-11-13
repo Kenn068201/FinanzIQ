@@ -3,6 +3,6 @@
     <item
         android:width="66dp"
         android:height="66dp"
-        android:drawable="@drawable/finanziq_icon_1790139333989"
+        android:drawable="@drawable/ic_launcher_fg_logo"
         android:gravity="center" />
 </layer-list>

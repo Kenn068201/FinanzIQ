@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -62,11 +63,13 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -82,8 +85,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.data.local.FinancialAccountEntity
 import com.example.data.local.SavingsGoalEntity
+import com.example.data.model.CategoryDataHierarchy
 import com.example.ui.FinanceViewModel
 import com.example.ui.components.ErrorWarningBox
+import com.example.ui.components.formatCurrency
 import com.example.ui.theme.FinanceBackground
 import com.example.ui.theme.FinanceError
 import com.example.ui.theme.FinanceOnPrimary
@@ -91,8 +96,11 @@ import com.example.ui.theme.FinancePrimary
 import com.example.ui.theme.FinanceSecondaryContainer
 import com.example.ui.theme.FinanceSuccess
 import com.example.ui.theme.FinanceSuccessContainer
+import com.example.util.AppLanguage
 import com.example.util.Localization
+import com.example.ui.components.DeleteConfirmationDialog
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -119,18 +127,34 @@ fun SavingsScreen(
     val simMonths by viewModel.simMonths.collectAsState()
 
     val simDailyAmount by viewModel.simDailyAmount.collectAsState()
+    val simDailyDays by viewModel.simDailyDays.collectAsState()
     val simDailyStart by viewModel.simDailyStartDate.collectAsState()
     val simDailyEnd by viewModel.simDailyEndDate.collectAsState()
 
-    var simulatorTab by remember { mutableIntStateOf(0) } // 0: Mensual, 1: Diario
+    var simulatorTab by rememberSaveable { mutableIntStateOf(0) } // 0: Mensual, 1: Diario
     var showAddGoalDialog by remember { mutableStateOf(false) }
     var depositGoalTarget by remember { mutableStateOf<SavingsGoalEntity?>(null) }
+    var goalToDelete by remember { mutableStateOf<SavingsGoalEntity?>(null) }
+    var congratulationsGoal by remember { mutableStateOf<SavingsGoalEntity?>(null) }
 
-    // Cálculo exacto mensual
-    val (principalTotal, _) = viewModel.calculateSimulationTotal()
+    // Estado reactivo y persistente del simulador de ahorro diario
+    var dailyAmountInput by rememberSaveable { mutableStateOf(if (simDailyAmount % 1.0 == 0.0) simDailyAmount.toInt().toString() else simDailyAmount.toString()) }
+    var dailyDaysInput by rememberSaveable { mutableStateOf(simDailyDays.toString()) }
 
-    // Cálculo exacto diario
-    val (dailyDays, dailyTotal, dailyError) = viewModel.calculateDailySimulation()
+    // Sincronizar reactivamente si el ViewModel emite cambios (chips, llamadas externas o reinicio)
+    LaunchedEffect(simDailyAmount) {
+        val currentParsed = dailyAmountInput.toDoubleOrNull() ?: 0.0
+        if (Math.abs(currentParsed - simDailyAmount) > 0.001 && simDailyAmount > 0) {
+            dailyAmountInput = if (simDailyAmount % 1.0 == 0.0) simDailyAmount.toInt().toString() else simDailyAmount.toString()
+        }
+    }
+
+    LaunchedEffect(simDailyDays) {
+        val currentParsed = dailyDaysInput.toIntOrNull() ?: 0
+        if (currentParsed != simDailyDays && simDailyDays > 0) {
+            dailyDaysInput = simDailyDays.toString()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -276,16 +300,27 @@ fun SavingsScreen(
                                 )
                             )
 
-                            // Chips de montos sugeridos
-                            Row(
+                            // Fila deslizable horizontal (LazyRow) para botones de montos mensuales sugeridos.
+                            // Se implementa como LazyRow para evitar que los botones se compriman o deformen verticalmente en pantallas estrechas.
+                            // Con maxLines = 1, softWrap = false y letterSpacing compacto, las opciones permanecen alineadas en una sola fila continua.
+                            LazyRow(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                listOf(200.0, 500.0, 1000.0, 2500.0, 5000.0).forEach { amount ->
+                                val monthlyAmounts = listOf(200.0, 500.0, 1000.0, 2500.0, 5000.0)
+                                items(monthlyAmounts) { amount ->
                                     FilterChip(
                                         selected = simMonthly == amount,
                                         onClick = { viewModel.updateSimulator(amount, simMonths) },
-                                        label = { Text("${currency.symbol} ${amount.toInt()}", fontSize = 11.sp) },
+                                        label = {
+                                            Text(
+                                                text = "${currency.symbol} ${amount.toInt()}",
+                                                fontSize = 11.sp,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                letterSpacing = (-0.2).sp
+                                            )
+                                        },
                                         colors = FilterChipDefaults.filterChipColors(
                                             selectedContainerColor = FinanceSecondaryContainer,
                                             selectedLabelColor = FinancePrimary
@@ -305,22 +340,33 @@ fun SavingsScreen(
                                 )
                             )
 
-                            Row(
+                            // Fila deslizable horizontal (LazyRow) para los plazos de tiempo mensual.
+                            // Permite desplazamiento horizontal fluido y evita que los botones se apilen o estiren la interfaz.
+                            LazyRow(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(top = 4.dp)
                             ) {
-                                listOf(
+                                val timePeriods = listOf(
                                     6 to Localization.t("sim_6_months", lang),
                                     12 to Localization.t("sim_1_year", lang),
                                     24 to Localization.t("sim_2_years", lang),
                                     36 to Localization.t("sim_3_years", lang)
-                                ).forEach { (months, label) ->
+                                )
+                                items(timePeriods) { (months, label) ->
                                     FilterChip(
                                         selected = simMonths == months,
                                         onClick = { viewModel.updateSimulator(simMonthly, months) },
-                                        label = { Text(label, fontSize = 12.sp) },
+                                        label = {
+                                            Text(
+                                                text = label,
+                                                fontSize = 12.sp,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                letterSpacing = (-0.2).sp
+                                            )
+                                        },
                                         colors = FilterChipDefaults.filterChipColors(
                                             selectedContainerColor = FinanceSecondaryContainer,
                                             selectedLabelColor = FinancePrimary
@@ -363,7 +409,10 @@ fun SavingsScreen(
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
-                                        text = "(${currency.symbol} ${String.format(Locale.US, "%,.2f", simMonthly)} × $simMonths meses = ${currency.symbol} ${String.format(Locale.US, "%,.2f", currentPrincipalTotal)})",
+                                        text = if (lang == AppLanguage.SPANISH)
+                                            "(${currency.symbol} ${String.format(Locale.US, "%,.2f", simMonthly)} × $simMonths meses = ${currency.symbol} ${String.format(Locale.US, "%,.2f", currentPrincipalTotal)})"
+                                        else
+                                            "(${currency.symbol} ${String.format(Locale.US, "%,.2f", simMonthly)} × $simMonths months = ${currency.symbol} ${String.format(Locale.US, "%,.2f", currentPrincipalTotal)})",
                                         style = MaterialTheme.typography.bodySmall.copy(
                                             color = Color(0xFF166534),
                                             fontWeight = FontWeight.SemiBold
@@ -372,18 +421,33 @@ fun SavingsScreen(
                                 }
                             }
                         } else {
-                            // --- SIMULACIÓN DIARIA EXACTA ---
-                            if (dailyError != null) {
-                                ErrorWarningBox(message = dailyError)
-                                Spacer(modifier = Modifier.height(12.dp))
+                            // --- SIMULACIÓN DIARIA DINÁMICA POR CANTIDAD Y LAPSO DE TIEMPO ---
+                            // El cálculo se actualiza dinámicamente en tiempo real con los valores ingresados por el usuario
+                            val currentDailyAmount = dailyAmountInput.toDoubleOrNull() ?: 0.0
+                            val currentDailyDays = dailyDaysInput.toIntOrNull() ?: 0
+                            val dynamicDailyTotal = if (currentDailyAmount > 0 && currentDailyDays > 0) {
+                                currentDailyAmount * currentDailyDays
+                            } else {
+                                0.0
                             }
 
-                            // Campo de Monto Diario
+                            // 1. Campo de Cantidad Ingresada a Ahorrar por Día
+                            Text(
+                                text = if (lang == AppLanguage.SPANISH) "Cantidad a Ahorrar por Día:" else "Daily Savings Amount:",
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+
                             OutlinedTextField(
-                                value = if (simDailyAmount > 0) String.format(Locale.US, "%.2f", simDailyAmount).removeSuffix(".00") else "",
-                                onValueChange = {
-                                    val newAmount = it.toDoubleOrNull() ?: 0.0
-                                    viewModel.updateDailySimulator(newAmount, simDailyStart, simDailyEnd)
+                                value = dailyAmountInput,
+                                onValueChange = { input ->
+                                    dailyAmountInput = input.filter { c -> c.isDigit() || c == '.' }
+                                    val amt = dailyAmountInput.toDoubleOrNull() ?: 0.0
+                                    val days = dailyDaysInput.toIntOrNull() ?: simDailyDays
+                                    viewModel.updateDailySimulatorByLapse(amt, days.coerceAtLeast(1))
                                 },
                                 label = { Text("${Localization.t("sim_daily_amount_label", lang)} (${currency.symbol})") },
                                 placeholder = { Text("50.00") },
@@ -395,18 +459,49 @@ fun SavingsScreen(
                                     .testTag("sim_daily_amount_input")
                             )
 
-                            Spacer(modifier = Modifier.height(10.dp))
+                            Spacer(modifier = Modifier.height(8.dp))
 
-                            // Chips de Montos Diarios Sugeridos
-                            Row(
+                            // Slider interactivo para ajustar el monto diario dinámicamente
+                            Slider(
+                                value = currentDailyAmount.toFloat().coerceIn(10f, 1000f),
+                                onValueChange = { newAmt ->
+                                    val roundedAmt = Math.round(newAmt / 5f) * 5.0
+                                    dailyAmountInput = if (roundedAmt % 1.0 == 0.0) roundedAmt.toInt().toString() else roundedAmt.toString()
+                                    val days = dailyDaysInput.toIntOrNull() ?: simDailyDays
+                                    viewModel.updateDailySimulatorByLapse(roundedAmt, days.coerceAtLeast(1))
+                                },
+                                valueRange = 10f..1000f,
+                                colors = SliderDefaults.colors(
+                                    thumbColor = FinancePrimary,
+                                    activeTrackColor = FinancePrimary
+                                )
+                            )
+
+                            // Fila deslizable horizontal (LazyRow) para botones de montos diarios sugeridos.
+                            // Corrige el error donde el botón C$ 200 se estiraba verticalmente letra por letra en lugar de desplazarse.
+                            LazyRow(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                listOf(20.0, 50.0, 100.0, 200.0, 500.0).forEach { amt ->
+                                val dailyAmounts = listOf(10.0, 20.0, 50.0, 100.0, 200.0, 500.0)
+                                items(dailyAmounts) { amt ->
+                                    val isSelected = (currentDailyAmount == amt)
                                     FilterChip(
-                                        selected = simDailyAmount == amt,
-                                        onClick = { viewModel.updateDailySimulator(amt, simDailyStart, simDailyEnd) },
-                                        label = { Text("${currency.symbol} ${amt.toInt()}", fontSize = 11.sp) },
+                                        selected = isSelected,
+                                        onClick = {
+                                            dailyAmountInput = if (amt % 1.0 == 0.0) amt.toInt().toString() else amt.toString()
+                                            val days = dailyDaysInput.toIntOrNull() ?: simDailyDays
+                                            viewModel.updateDailySimulatorByLapse(amt, days.coerceAtLeast(1))
+                                        },
+                                        label = {
+                                            Text(
+                                                text = "${currency.symbol} ${amt.toInt()}",
+                                                fontSize = 11.sp,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                letterSpacing = (-0.2).sp
+                                            )
+                                        },
                                         colors = FilterChipDefaults.filterChipColors(
                                             selectedContainerColor = FinanceSecondaryContainer,
                                             selectedLabelColor = FinancePrimary
@@ -415,84 +510,188 @@ fun SavingsScreen(
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(12.dp))
+                            Spacer(modifier = Modifier.height(14.dp))
 
-                            // Fecha de Inicio (Valida >= Hoy)
+                            // 2. Lapso de Tiempo para el Ahorro
+                            Text(
+                                text = if (lang == AppLanguage.SPANISH) "Lapso de Tiempo de la Simulación:" else "Simulation Timeframe:",
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+
                             OutlinedTextField(
-                                value = simDailyStart,
-                                onValueChange = {
-                                    viewModel.updateDailySimulator(simDailyAmount, it, simDailyEnd)
+                                value = dailyDaysInput,
+                                onValueChange = { input ->
+                                    dailyDaysInput = input.filter { it.isDigit() }
+                                    val days = dailyDaysInput.toIntOrNull() ?: 0
+                                    val amt = dailyAmountInput.toDoubleOrNull() ?: simDailyAmount
+                                    viewModel.updateDailySimulatorByLapse(amt, days.coerceAtLeast(1))
                                 },
-                                label = { Text(Localization.t("sim_daily_start_date", lang)) },
-                                placeholder = { Text("AAAA-MM-DD") },
+                                label = { Text(if (lang == AppLanguage.SPANISH) "Lapso de Tiempo en Días" else "Timeframe in Days") },
+                                placeholder = { Text("ej. 30") },
                                 leadingIcon = {
                                     Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = FinancePrimary)
                                 },
                                 singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .testTag("sim_daily_start_input")
+                                    .testTag("sim_daily_days_input")
                             )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Slider interactivo para ajustar los días de forma dinámica
+                            Slider(
+                                value = currentDailyDays.toFloat().coerceIn(1f, 365f),
+                                onValueChange = { newDays ->
+                                    val daysInt = newDays.toInt().coerceAtLeast(1)
+                                    dailyDaysInput = daysInt.toString()
+                                    val amt = dailyAmountInput.toDoubleOrNull() ?: simDailyAmount
+                                    viewModel.updateDailySimulatorByLapse(amt, daysInt)
+                                },
+                                valueRange = 1f..365f,
+                                colors = SliderDefaults.colors(
+                                    thumbColor = FinancePrimary,
+                                    activeTrackColor = FinancePrimary
+                                )
+                            )
+
+                            // Fila deslizable horizontal (LazyRow) para Chips de Lapsos de Tiempo Sugeridos.
+                            // Garantiza que los chips se mantengan en una sola línea horizontal deslizable con espaciado óptimo.
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                val lapseOptions = listOf(
+                                    7 to if (lang == AppLanguage.SPANISH) "7 días (1 sem)" else "7 days (1 wk)",
+                                    15 to if (lang == AppLanguage.SPANISH) "15 días (quincena)" else "15 days (bi-weekly)",
+                                    30 to if (lang == AppLanguage.SPANISH) "30 días (1 mes)" else "30 days (1 mo)",
+                                    60 to if (lang == AppLanguage.SPANISH) "60 días (2 meses)" else "60 days (2 mos)",
+                                    90 to if (lang == AppLanguage.SPANISH) "90 días (trimestre)" else "90 days (quarter)",
+                                    180 to if (lang == AppLanguage.SPANISH) "180 días (semestre)" else "180 days (semester)",
+                                    365 to if (lang == AppLanguage.SPANISH) "365 días (1 año)" else "365 days (1 yr)"
+                                )
+                                items(lapseOptions) { (days, label) ->
+                                    val isSelected = (currentDailyDays == days)
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = {
+                                            dailyDaysInput = days.toString()
+                                            val amt = dailyAmountInput.toDoubleOrNull() ?: simDailyAmount
+                                            viewModel.updateDailySimulatorByLapse(amt, days)
+                                        },
+                                        label = {
+                                            Text(
+                                                text = label,
+                                                fontSize = 11.sp,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                letterSpacing = (-0.2).sp
+                                            )
+                                        },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = FinanceSecondaryContainer,
+                                            selectedLabelColor = FinancePrimary
+                                        )
+                                    )
+                                }
+                            }
 
                             Spacer(modifier = Modifier.height(10.dp))
 
-                            // Fecha de Fin (Valida > Fecha Inicio)
-                            OutlinedTextField(
-                                value = simDailyEnd,
-                                onValueChange = {
-                                    viewModel.updateDailySimulator(simDailyAmount, simDailyStart, it)
-                                },
-                                label = { Text(Localization.t("sim_daily_end_date", lang)) },
-                                placeholder = { Text("AAAA-MM-DD") },
-                                leadingIcon = {
-                                    Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = FinancePrimary)
-                                },
-                                singleLine = true,
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .testTag("sim_daily_end_input")
+                            // Resumen de fechas estimadas
+                            val cal = Calendar.getInstance().apply {
+                                add(Calendar.DAY_OF_YEAR, currentDailyDays.coerceAtLeast(1))
+                            }
+                            val estimatedEndDate = SimpleDateFormat("dd MMM, yyyy", Locale.getDefault()).format(cal.time)
+                            val startDate = SimpleDateFormat("dd MMM, yyyy", Locale.getDefault()).format(Date())
+
+                            Text(
+                                text = if (lang == AppLanguage.SPANISH)
+                                    "🗓️ Período estimado: del $startDate al $estimatedEndDate ($currentDailyDays días)"
+                                else
+                                    "🗓️ Estimated period: from $startDate to $estimatedEndDate ($currentDailyDays days)",
+                                style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF64748B))
                             )
 
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
 
-                            // Cuadro de Resultado Diario Exacto
-                            if (dailyError == null && dailyDays > 0) {
+                            // Botón explícito para Ejecutar/Recalcular la Simulación
+                            Button(
+                                onClick = {
+                                    val amt = dailyAmountInput.toDoubleOrNull() ?: 0.0
+                                    val days = dailyDaysInput.toIntOrNull() ?: 0
+                                    viewModel.updateDailySimulatorByLapse(amt, days.coerceAtLeast(1))
+                                    viewModel.calculateDailySimulation(amt, days)
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = FinancePrimary,
+                                    contentColor = FinanceOnPrimary
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(46.dp)
+                                    .testTag("calculate_daily_savings_button")
+                            ) {
+                                Icon(Icons.Default.Payments, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = if (lang == AppLanguage.SPANISH) "Calcular Simulación de Ahorro" else "Calculate Savings Simulation",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            // 3. Cuadro de Resultado Dinámico en Tiempo Real según lo ingresado por el usuario
+                            if (currentDailyAmount > 0 && currentDailyDays > 0) {
                                 Card(
                                     shape = RoundedCornerShape(14.dp),
                                     colors = CardDefaults.cardColors(containerColor = FinanceSuccessContainer),
-                                    modifier = Modifier.fillMaxWidth().testTag("sim_daily_result_box")
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("sim_daily_result_box")
                                 ) {
-                                    Column(modifier = Modifier.padding(14.dp)) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Default.CheckCircle,
+                                                contentDescription = null,
+                                                tint = Color(0xFF14532D),
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = if (lang == AppLanguage.SPANISH) "🎯 Resultado Dinámico de Ahorro Diario" else "🎯 Dynamic Daily Savings Result",
+                                                style = MaterialTheme.typography.labelMedium.copy(
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFF14532D)
+                                                )
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(8.dp))
                                         Text(
-                                            text = Localization.t("sim_result_header", lang),
-                                            style = MaterialTheme.typography.labelMedium.copy(
+                                            text = if (lang == AppLanguage.SPANISH)
+                                                "Ahorrando ${currency.symbol} ${String.format(Locale.US, "%,.2f", currentDailyAmount)} al día durante $currentDailyDays días, acumularás un total de ${currency.symbol} ${String.format(Locale.US, "%,.2f", dynamicDailyTotal)}."
+                                            else
+                                                "Saving ${currency.symbol} ${String.format(Locale.US, "%,.2f", currentDailyAmount)} per day for $currentDailyDays days, you will accumulate a total of ${currency.symbol} ${String.format(Locale.US, "%,.2f", dynamicDailyTotal)}.",
+                                            style = MaterialTheme.typography.bodyMedium.copy(
                                                 fontWeight = FontWeight.Bold,
                                                 color = Color(0xFF14532D)
                                             )
                                         )
                                         Spacer(modifier = Modifier.height(6.dp))
                                         Text(
-                                            text = Localization.t(
-                                                "sim_result_daily_text",
-                                                lang,
-                                                "${currency.symbol} ${String.format(Locale.US, "%,.2f", simDailyAmount)}",
-                                                simDailyStart,
-                                                simDailyEnd,
-                                                "$dailyDays",
-                                                "${currency.symbol} ${String.format(Locale.US, "%,.2f", dailyTotal)}",
-                                                "${currency.symbol} ${String.format(Locale.US, "%,.2f", simDailyAmount)}",
-                                                "$dailyDays"
-                                            ),
-                                            style = MaterialTheme.typography.bodyMedium.copy(
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color(0xFF14532D)
-                                            )
-                                        )
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text(
-                                            text = "(${currency.symbol} ${String.format(Locale.US, "%,.2f", simDailyAmount)} × $dailyDays días = ${currency.symbol} ${String.format(Locale.US, "%,.2f", dailyTotal)})",
+                                            text = if (lang == AppLanguage.SPANISH)
+                                                "(${currency.symbol} ${String.format(Locale.US, "%,.2f", currentDailyAmount)} diario × $currentDailyDays días = ${currency.symbol} ${String.format(Locale.US, "%,.2f", dynamicDailyTotal)} acumulados)"
+                                            else
+                                                "(${currency.symbol} ${String.format(Locale.US, "%,.2f", currentDailyAmount)} daily × $currentDailyDays days = ${currency.symbol} ${String.format(Locale.US, "%,.2f", dynamicDailyTotal)} accumulated)",
                                             style = MaterialTheme.typography.bodySmall.copy(
                                                 color = Color(0xFF166534),
                                                 fontWeight = FontWeight.SemiBold
@@ -500,6 +699,20 @@ fun SavingsScreen(
                                         )
                                     }
                                 }
+                            } else if (currentDailyAmount <= 0.0) {
+                                ErrorWarningBox(
+                                    message = if (lang == AppLanguage.SPANISH)
+                                        "Ingrese un monto diario mayor a 0 para simular."
+                                    else
+                                        "Please enter a daily savings amount greater than 0."
+                                )
+                            } else {
+                                ErrorWarningBox(
+                                    message = if (lang == AppLanguage.SPANISH)
+                                        "Ingrese un lapso de tiempo en días mayor a 0 para simular."
+                                    else
+                                        "Please enter a number of days greater than 0."
+                                )
                             }
                         }
                     }
@@ -570,14 +783,54 @@ fun SavingsScreen(
                     }
                 }
             } else {
-                items(goals, key = { it.id }) { goal ->
-                    SavingsGoalProgressCard(
-                        goal = goal,
-                        currencySymbol = currency.symbol,
-                        lang = lang,
-                        onDeposit = { depositGoalTarget = goal },
-                        onDelete = { viewModel.deleteSavingsGoal(goal) }
-                    )
+                val inProgressGoals = goals.filter { it.currentAmount < it.targetAmount }
+                val reachedGoals = goals.filter { it.currentAmount >= it.targetAmount }
+
+                // Sección 1: Metas En Progreso
+                if (inProgressGoals.isNotEmpty()) {
+                    item {
+                        Text(
+                            text = if (lang == AppLanguage.SPANISH) "En progreso (${inProgressGoals.size})" else "In Progress (${inProgressGoals.size})",
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = FinancePrimary
+                            ),
+                            modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)
+                        )
+                    }
+                    items(inProgressGoals, key = { it.id }) { goal ->
+                        SavingsGoalProgressCard(
+                            goal = goal,
+                            currencySymbol = currency.symbol,
+                            lang = lang,
+                            onDeposit = { depositGoalTarget = goal },
+                            onDelete = { goalToDelete = goal }
+                        )
+                    }
+                }
+
+                // Sección 2: Metas Alcanzadas (100% completadas)
+                if (reachedGoals.isNotEmpty()) {
+                    item {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = if (lang == AppLanguage.SPANISH) "🏆 Alcanzadas (${reachedGoals.size})" else "🏆 Reached (${reachedGoals.size})",
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = FinanceSuccess
+                            ),
+                            modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)
+                        )
+                    }
+                    items(reachedGoals, key = { it.id }) { goal ->
+                        SavingsGoalProgressCard(
+                            goal = goal,
+                            currencySymbol = currency.symbol,
+                            lang = lang,
+                            onDeposit = { depositGoalTarget = goal },
+                            onDelete = { goalToDelete = goal }
+                        )
+                    }
                 }
             }
 
@@ -608,9 +861,68 @@ fun SavingsScreen(
                 lang = lang,
                 currencySymbol = currency.symbol,
                 onDismiss = { depositGoalTarget = null },
-                onSuccess = {
+                onSuccess = { depositedAmount ->
                     depositGoalTarget = null
+                    val newCurrent = goal.currentAmount + depositedAmount
+                    if (newCurrent >= goal.targetAmount) {
+                        congratulationsGoal = goal.copy(currentAmount = newCurrent)
+                    }
                 }
+            )
+        }
+
+        // Mensaje de Felicitaciones al alcanzar y cumplir una meta al 100%
+        congratulationsGoal?.let { goal ->
+            AlertDialog(
+                onDismissRequest = { congratulationsGoal = null },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = if (lang == AppLanguage.SPANISH) "🎉 ¡Meta Alcanzada con Éxito!" else "🎉 Goal Reached Successfully!",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = FinanceSuccess
+                            )
+                        )
+                    }
+                },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = if (lang == AppLanguage.SPANISH)
+                                "¡Felicitaciones! Has completado al 100% tu meta de ahorro '${goal.title}'. Tu constancia y disciplina financiera han dado frutos. Esta meta ha sido archivada en el apartado de 'Alcanzadas'."
+                            else
+                                "Congratulations! You have 100% completed your savings goal '${goal.title}'. Your commitment and financial discipline paid off! This goal is now saved in the 'Reached' section.",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = { congratulationsGoal = null },
+                        colors = ButtonDefaults.buttonColors(containerColor = FinanceSuccess)
+                    ) {
+                        Text(if (lang == AppLanguage.SPANISH) "¡Excelente!" else "Awesome!", fontWeight = FontWeight.Bold)
+                    }
+                },
+                shape = RoundedCornerShape(18.dp)
+            )
+        }
+
+        // Diálogo de Confirmación de Eliminación para Metas (tanto En Progreso como Alcanzadas)
+        goalToDelete?.let { goal ->
+            DeleteConfirmationDialog(
+                title = if (lang == AppLanguage.SPANISH) "Eliminar Meta de Ahorro" else "Delete Savings Goal",
+                message = if (lang == AppLanguage.SPANISH)
+                    "¿Estás seguro de eliminar la meta '${goal.title}'? Esta acción afectará los registros de tu plan de ahorros. ¿Deseas confirmar la eliminación?"
+                else
+                    "Are you sure you want to delete the savings goal '${goal.title}'? This action will affect your savings plan records. Do you wish to confirm?",
+                lang = lang,
+                onConfirm = {
+                    viewModel.deleteSavingsGoal(goal)
+                    goalToDelete = null
+                },
+                onDismiss = { goalToDelete = null }
             )
         }
     }
@@ -664,7 +976,7 @@ fun SavingsGoalProgressCard(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text(
-                            text = goal.title,
+                            text = CategoryDataHierarchy.getTransactionTitleDisplayName(goal.title, lang),
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -716,14 +1028,14 @@ fun SavingsGoalProgressCard(
             ) {
                 Column {
                     Text(
-                        text = "${Localization.t("goal_saved_label", lang)} $currencySymbol ${String.format(Locale.US, "%,.2f", goal.currentAmount)}",
+                        text = "${Localization.t("goal_saved_label", lang)} ${formatCurrency(goal.currentAmount)}",
                         style = MaterialTheme.typography.bodyMedium.copy(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                     )
                     Text(
-                        text = "${Localization.t("goal_target_label", lang)} $currencySymbol ${String.format(Locale.US, "%,.2f", goal.targetAmount)}",
+                        text = "${Localization.t("goal_target_label", lang)} ${formatCurrency(goal.targetAmount)}",
                         style = MaterialTheme.typography.bodySmall.copy(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -782,8 +1094,8 @@ fun AddSavingsGoalModal(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                if (errorMsg != null) {
-                    ErrorWarningBox(message = errorMsg!!)
+                errorMsg?.let { msg ->
+                    ErrorWarningBox(message = msg)
                 }
 
                 OutlinedTextField(
@@ -869,7 +1181,7 @@ fun DepositToGoalWithAccountModal(
     lang: com.example.util.AppLanguage,
     currencySymbol: String,
     onDismiss: () -> Unit,
-    onSuccess: () -> Unit
+    onSuccess: (Double) -> Unit
 ) {
     val activeAccounts = remember(accounts) { accounts.filter { it.isActive } }
     var selectedAccount by remember { mutableStateOf<FinancialAccountEntity?>(activeAccounts.firstOrNull()) }
@@ -918,7 +1230,7 @@ fun DepositToGoalWithAccountModal(
                 Spacer(modifier = Modifier.height(10.dp))
 
                 Text(
-                    text = "${Localization.t("goal_saved_label", lang)} $currencySymbol ${String.format(Locale.US, "%,.2f", goal.currentAmount)} / $currencySymbol ${String.format(Locale.US, "%,.2f", goal.targetAmount)}",
+                    text = "${Localization.t("goal_saved_label", lang)} ${formatCurrency(goal.currentAmount)} / ${formatCurrency(goal.targetAmount)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -926,8 +1238,8 @@ fun DepositToGoalWithAccountModal(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 // Mensaje de Error
-                if (errorMsg != null) {
-                    ErrorWarningBox(message = errorMsg!!)
+                errorMsg?.let { msg ->
+                    ErrorWarningBox(message = msg)
                     Spacer(modifier = Modifier.height(12.dp))
                 }
 
@@ -960,18 +1272,19 @@ fun DepositToGoalWithAccountModal(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Column(modifier = Modifier.weight(1f)) {
+                                    val account = selectedAccount
                                     Text(
-                                        text = if (selectedAccount != null) {
-                                            "${selectedAccount!!.bankName} • ${selectedAccount!!.accountType} (${selectedAccount!!.accountNumber})"
+                                        text = if (account != null) {
+                                            "${account.bankName} • ${account.accountType} (${account.accountNumber})"
                                         } else Localization.t("select_account_placeholder", lang),
                                         style = MaterialTheme.typography.bodyMedium,
                                         fontWeight = FontWeight.SemiBold
                                     )
-                                    if (selectedAccount != null) {
+                                    if (account != null) {
                                         Text(
-                                            text = "${Localization.t("available_prefix", lang)} $currencySymbol ${String.format(Locale.US, "%,.2f", selectedAccount!!.balance)}",
+                                            text = "${Localization.t("available_prefix", lang)} ${formatCurrency(account.balance)}",
                                             style = MaterialTheme.typography.bodySmall,
-                                            color = if (selectedAccount!!.balance > 0) FinanceSuccess else FinanceError
+                                            color = if (account.balance > 0) FinanceSuccess else FinanceError
                                         )
                                     }
                                 }
@@ -988,7 +1301,7 @@ fun DepositToGoalWithAccountModal(
                                     text = {
                                         Column {
                                             Text("${acc.bankName} - ${acc.accountType} (${acc.accountNumber})", fontWeight = FontWeight.SemiBold)
-                                            Text("$currencySymbol ${String.format(Locale.US, "%,.2f", acc.balance)}", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                                            Text(formatCurrency(acc.balance), color = Color.Gray, style = MaterialTheme.typography.bodySmall)
                                         }
                                     },
                                     onClick = {
@@ -1055,7 +1368,7 @@ fun DepositToGoalWithAccountModal(
                                 amount = amount
                             ) { success, err ->
                                 if (success) {
-                                    onSuccess()
+                                    onSuccess(amount)
                                 } else {
                                     errorMsg = err
                                 }

@@ -1,14 +1,19 @@
 package com.example.ui.navigation
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -22,6 +27,7 @@ import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Savings
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -32,6 +38,7 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -49,8 +56,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.ui.FinanceViewModel
 import com.example.ui.admin.AdminScreen
@@ -60,8 +69,10 @@ import com.example.ui.auth.LoginScreen
 import com.example.ui.auth.RegisterScreen
 import com.example.ui.bills.BillsScreen
 import com.example.ui.budgets.BudgetsScreen
+import com.example.ui.components.AppUpdatePromptDialog
 import com.example.ui.dashboard.DashboardScreen
 import com.example.ui.savings.SavingsScreen
+import com.example.ui.settings.AppSettingsDialog
 import com.example.ui.theme.FinanceBackground
 import com.example.ui.theme.FinanceError
 import com.example.ui.theme.FinancePrimary
@@ -132,8 +143,15 @@ fun AuthenticatedAppScaffold(
     val selectedCurrency by viewModel.selectedCurrency.collectAsState()
     val lang by viewModel.currentLanguage.collectAsState()
     val navController = rememberNavController()
-    var currentRoute by remember { mutableStateOf(Screen.Dashboard.route) }
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route ?: Screen.Dashboard.route
     var showUserMenu by remember { mutableStateOf(false) }
+
+    // Estados de control de versiones y diálogo de ajustes
+    val latestAppVersion by viewModel.latestAppVersion.collectAsState()
+    val clientAppVersion by viewModel.clientAppVersion.collectAsState()
+    var showAppSettingsDialog by remember { mutableStateOf(false) }
+    var dismissedOptionalVersion by remember { mutableStateOf<String?>(null) }
 
     var showQuickAddDialog by remember { mutableStateOf(false) }
     var quickAddType by remember { mutableStateOf("EXPENSE") }
@@ -233,6 +251,24 @@ fun AuthenticatedAppScaffold(
                             text = {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(
+                                        imageVector = Icons.Default.Settings,
+                                        contentDescription = "Ajustes",
+                                        tint = FinancePrimary
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Ajustes y Preferencias", fontWeight = FontWeight.SemiBold)
+                                }
+                            },
+                            onClick = {
+                                showUserMenu = false
+                                showAppSettingsDialog = true
+                            },
+                            modifier = Modifier.testTag("menu_settings_button")
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
                                         imageVector = Icons.AutoMirrored.Filled.ExitToApp,
                                         contentDescription = com.example.util.Localization.t("logout", lang),
                                         tint = FinanceError
@@ -253,35 +289,64 @@ fun AuthenticatedAppScaffold(
             )
         },
         bottomBar = {
-            NavigationBar(
-                containerColor = MaterialTheme.colorScheme.surface,
+            // Contenedor con espacio para la barra del sistema evitando que NavigationBar se aplaste en dispositivos físicos
+            Surface(
+                color = MaterialTheme.colorScheme.surface,
                 tonalElevation = 2.dp
             ) {
+                Box(modifier = Modifier.navigationBarsPadding()) {
+                    NavigationBar(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 0.dp,
+                        windowInsets = WindowInsets(0, 0, 0, 0),
+                        modifier = Modifier.height(56.dp)
+                    ) {
                 navItems.forEach { screen ->
                     val isSelected = currentRoute == screen.route
                     val title = com.example.util.Localization.t(screen.titleKey, lang)
                     NavigationBarItem(
                         selected = isSelected,
                         onClick = {
-                            currentRoute = screen.route
-                            navController.navigate(screen.route) {
-                                popUpTo(Screen.Dashboard.route) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
+                            if (screen.route == Screen.Dashboard.route) {
+                                // Al volver a la pantalla de Inicio, se desapilan las funciones secundarias
+                                // (como el simulador de Ahorro, billeteras, etc.) para mostrar siempre el dashboard inicial
+                                val popped = navController.popBackStack(Screen.Dashboard.route, inclusive = false)
+                                if (!popped) {
+                                    navController.navigate(Screen.Dashboard.route) {
+                                        popUpTo(navController.graph.findStartDestination().id) {
+                                            inclusive = false
+                                            saveState = false
+                                        }
+                                        launchSingleTop = true
+                                        restoreState = false
+                                    }
+                                }
+                            } else {
+                                navController.navigate(screen.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
                             }
                         },
                         icon = {
                             Icon(
                                 imageVector = screen.icon,
-                                contentDescription = title
+                                contentDescription = title,
+                                modifier = Modifier.size(20.dp)
                             )
                         },
                         label = {
                             Text(
                                 text = title,
                                 style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 9.sp,
+                                    lineHeight = 11.sp,
+                                    letterSpacing = (-0.3).sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                )
+                                ),
+                                maxLines = 1,
+                                softWrap = false
                             )
                         },
                         colors = NavigationBarItemDefaults.colors(
@@ -295,10 +360,29 @@ fun AuthenticatedAppScaffold(
                     )
                 }
             }
+                }
+            }
         },
         containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier.fillMaxSize()
     ) { innerPadding ->
+        // Manejador del botón Atrás del sistema para garantizar el retorno al Dashboard inicial
+        if (currentRoute != Screen.Dashboard.route) {
+            BackHandler {
+                val popped = navController.popBackStack(Screen.Dashboard.route, inclusive = false)
+                if (!popped) {
+                    navController.navigate(Screen.Dashboard.route) {
+                        popUpTo(navController.graph.findStartDestination().id) {
+                            inclusive = false
+                            saveState = false
+                        }
+                        launchSingleTop = true
+                        restoreState = false
+                    }
+                }
+            }
+        }
+
         NavHost(
             navController = navController,
             startDestination = Screen.Dashboard.route,
@@ -310,27 +394,21 @@ fun AuthenticatedAppScaffold(
                 DashboardScreen(
                     viewModel = viewModel,
                     onNavigateToTransactions = {
-                        currentRoute = Screen.Transactions.route
                         navController.navigate(Screen.Transactions.route)
                     },
                     onNavigateToBudgets = {
-                        currentRoute = Screen.Budgets.route
                         navController.navigate(Screen.Budgets.route)
                     },
                     onNavigateToSavings = {
-                        currentRoute = Screen.Savings.route
                         navController.navigate(Screen.Savings.route)
                     },
                     onNavigateToBills = {
-                        currentRoute = Screen.Bills.route
                         navController.navigate(Screen.Bills.route)
                     },
                     onNavigateToAiAssistant = {
-                        currentRoute = Screen.AiAssistant.route
                         navController.navigate(Screen.AiAssistant.route)
                     },
                     onNavigateToWallets = {
-                        currentRoute = Screen.Wallets.route
                         navController.navigate(Screen.Wallets.route)
                     },
                     onOpenAddTransaction = { type ->
@@ -412,6 +490,58 @@ fun AuthenticatedAppScaffold(
                         accountId = accountId
                     )
                     showQuickAddDialog = false
+                }
+            )
+        }
+
+        // Diálogo de Ajustes y Preferencias del Usuario Final
+        if (showAppSettingsDialog) {
+            AppSettingsDialog(
+                viewModel = viewModel,
+                onDismiss = { showAppSettingsDialog = false },
+                onLogout = {
+                    showAppSettingsDialog = false
+                    viewModel.logout()
+                }
+            )
+        }
+
+        /**
+         * Control y sincronización de versiones (Obligatoria / Opcional).
+         * 
+         * Qué hace:
+         * Evalúa si debe presentarse el diálogo de actualización de la aplicación al usuario.
+         * 
+         * Por qué se implementa de esta forma:
+         * Satisface estrictamente el Problema 4:
+         * "El aviso de actualizar obligatoriamente no debe salirle al administrador, únicamente al usuario final
+         * ya que los cambios que el implementa se le añaden automáticamente".
+         * Por ello, si currentUser?.role == "ADMIN", isEndUser es falso y el aviso nunca se muestra al administrador.
+         * Para el usuario final (role != "ADMIN"), si la actualización es obligatoria se despliega al iniciar sesión
+         * y bloquea las funciones hasta que el usuario pulsa "Actualizar", desbloqueándolas de inmediato.
+         * 
+         * Cómo se relaciona con el resto del código:
+         * Se comunica con AppUpdatePromptDialog y con FinanceViewModel.clientUpdateAppVersion(...)
+         * actualizando en tiempo real la versión del cliente.
+         */
+        val isEndUser = currentUser?.role != "ADMIN"
+        val latest = latestAppVersion
+        val shouldShowUpdateDialog = isEndUser && latest != null &&
+            latest.versionNumber != clientAppVersion &&
+            (latest.isMandatory || dismissedOptionalVersion != latest.versionNumber)
+
+        if (shouldShowUpdateDialog) {
+            AppUpdatePromptDialog(
+                latestVersion = latest,
+                clientAppVersion = clientAppVersion,
+                currentLanguage = lang,
+                onUpdateApp = {
+                    latest?.let {
+                        viewModel.clientUpdateAppVersion(it.versionNumber)
+                    }
+                },
+                onContinueWithoutUpdate = {
+                    dismissedOptionalVersion = latest?.versionNumber
                 }
             )
         }

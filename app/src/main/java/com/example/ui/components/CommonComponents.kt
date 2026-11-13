@@ -17,11 +17,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,6 +34,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.FinanceBorderSky
@@ -92,17 +97,33 @@ fun ErrorWarningBox(
     }
 }
 
-// Formatted Currency String
+/**
+ * Formateo de moneda unificado y global para toda la aplicación FinanzIQ.
+ * 
+ * Qué hace:
+ * Convierte el importe base en Córdobas (NIO) a la divisa activa seleccionada por el usuario
+ * (o a la divisa especificada) aplicando los tipos de cambio oficiales de cada país, y le da
+ * formato numérico con separadores de miles y dos decimales precedido por el símbolo correspondiente.
+ * 
+ * Por qué se implementa de esta forma:
+ * Da solución estricta al Problema 1: "Las preferencias del usuario se deben aplicar a cada formulario,
+ * aviso, tarjeta visual, filtro, módulo del sistema existente, ya que actualmente no se aplican de forma pareja,
+ * por ejemplo, la moneda solo se aplica a la tarjeta de saldo global, el resto sigue en Córdobas sin convertirse".
+ * 
+ * Cómo se relaciona con el resto del código:
+ * Al delegar en CurrencyConversionUtil.activeCurrency (un mutableStateOf de Compose), todas las interfaces
+ * (Dashboard, Billeteras, Presupuestos, Movimientos, Facturas, Metas) que llaman a formatCurrency o formatCordobas
+ * se recomponen y actualizan automáticamente cuando el usuario guarda sus preferencias en el diálogo de ajustes.
+ */
 fun formatCurrency(amount: Double, currency: com.example.util.CurrencyOption? = null): String {
-    val symbols = DecimalFormatSymbols(Locale.US).apply {
-        groupingSeparator = ','
-        decimalSeparator = '.'
-    }
-    val formatter = DecimalFormat("#,##0.00", symbols)
-    val sym = currency?.symbol ?: "C$"
-    return "$sym ${formatter.format(amount)}"
+    val target = currency ?: com.example.util.CurrencyConversionUtil.activeCurrency
+    return com.example.util.CurrencyConversionUtil.formatWithConversion(amount, target)
 }
 
+/**
+ * Función puente compatible con llamadas históricas formatCordobas.
+ * Convierte automáticamente el monto base en Córdobas a la divisa activa del usuario.
+ */
 fun formatCordobas(amount: Double): String {
     return formatCurrency(amount, null)
 }
@@ -114,15 +135,16 @@ fun MetricStatCard(
     value: String,
     icon: ImageVector,
     iconColor: Color,
-    backgroundColor: Color = Color.White,
+    backgroundColor: Color? = null,
     modifier: Modifier = Modifier,
     subtitle: String? = null
 ) {
+    val containerBg = backgroundColor ?: MaterialTheme.colorScheme.surface
     Card(
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = backgroundColor),
+        colors = CardDefaults.cardColors(containerColor = containerBg),
         border = CardDefaults.outlinedCardBorder().copy(
-            brush = androidx.compose.ui.graphics.SolidColor(FinanceOutlineVariant),
+            brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.outlineVariant),
             width = 1.dp
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
@@ -141,7 +163,7 @@ fun MetricStatCard(
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.8.sp,
-                        color = Color(0xFF64748B)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 )
                 Box(
@@ -164,7 +186,7 @@ fun MetricStatCard(
                 text = value,
                 style = MaterialTheme.typography.titleLarge.copy(
                     fontWeight = FontWeight.ExtraBold,
-                    color = Color(0xFF0F172A)
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             )
             if (subtitle != null) {
@@ -172,7 +194,7 @@ fun MetricStatCard(
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodySmall.copy(
-                        color = Color(0xFF64748B),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 11.sp
                     )
                 )
@@ -201,7 +223,7 @@ fun SectionHeader(
             style = MaterialTheme.typography.labelMedium.copy(
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 0.6.sp,
-                color = Color(0xFF0F172A)
+                color = MaterialTheme.colorScheme.onSurface
             )
         )
         if (actionText != null && onActionClick != null) {
@@ -219,4 +241,95 @@ fun SectionHeader(
         }
     }
 }
+
+/**
+ * Diálogo de Confirmación para Eliminaciones Críticas.
+ * 
+ * Qué hace:
+ * Despliega un formulario modal que advierte al usuario de que la eliminación
+ * afectará directamente los datos de su balance general y de sus cuentas asociadas,
+ * requiriendo confirmación explícita con botones de Cancelar y Confirmar.
+ * 
+ * Por qué se implementa de esta forma:
+ * Cumple estrictamente con la directriz: "Al darle al botón de eliminar, desplegar un
+ * formulario que pida confirmación del usuario, indicándole que afectará los datos de su balance,
+ * con los botones de Cancelar y Confirmar para cada una de las interfaces que tengan esta funcion".
+ */
+@Composable
+fun DeleteConfirmationDialog(
+    title: String,
+    message: String,
+    confirmButtonText: String? = null,
+    cancelButtonText: String? = null,
+    lang: com.example.util.AppLanguage = com.example.util.AppLanguage.SPANISH,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(FinanceError.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = FinanceError,
+                    modifier = Modifier.size(26.dp)
+                )
+            }
+        },
+        title = {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        text = {
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 20.sp
+                ),
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(containerColor = FinanceError),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.testTag("confirm_delete_btn")
+            ) {
+                Text(
+                    text = confirmButtonText ?: if (lang == com.example.util.AppLanguage.SPANISH) "Confirmar" else "Confirm",
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.testTag("cancel_delete_btn")
+            ) {
+                Text(
+                    text = cancelButtonText ?: if (lang == com.example.util.AppLanguage.SPANISH) "Cancelar" else "Cancel",
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        },
+        shape = RoundedCornerShape(20.dp),
+        containerColor = MaterialTheme.colorScheme.surface
+    )
+}
+
 
