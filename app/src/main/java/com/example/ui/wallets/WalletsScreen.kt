@@ -1,6 +1,7 @@
 package com.example.ui.wallets
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,9 +30,12 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.PhoneIphone
 import androidx.compose.material.icons.filled.Refresh
+import com.example.ui.components.DeleteConfirmationDialog
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -76,6 +80,8 @@ import com.example.ui.theme.FinanceSecondaryContainer
 import com.example.ui.theme.FinanceSuccess
 import com.example.ui.theme.FinanceSuccessContainer
 import com.example.ui.transactions.TransferFundsDialog
+import com.example.ui.components.formatCurrency
+import com.example.util.AppLanguage
 import com.example.util.Localization
 import java.util.Locale
 
@@ -95,9 +101,12 @@ fun WalletsScreen(
     val lang by viewModel.currentLanguage.collectAsState()
     val accounts by viewModel.financialAccounts.collectAsState()
     val currency by viewModel.selectedCurrency.collectAsState()
+    val allInstitutions by viewModel.financialInstitutions.collectAsState()
 
     var selectedTab by remember { mutableIntStateOf(0) } // 0: Todas, 1: Cuentas, 2: Billeteras
+
     var accountToToggle by remember { mutableStateOf<FinancialAccountEntity?>(null) }
+    var accountToDeletePermanent by remember { mutableStateOf<FinancialAccountEntity?>(null) }
     var showTransferDialog by remember { mutableStateOf(false) }
 
     val filteredList = when (selectedTab) {
@@ -196,7 +205,7 @@ fun WalletsScreen(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "${currency.symbol} ${String.format(Locale.US, "%,.2f", totalActiveBalance)}",
+                            text = formatCurrency(totalActiveBalance, currency),
                             style = MaterialTheme.typography.headlineMedium.copy(
                                 fontWeight = FontWeight.Black,
                                 color = MaterialTheme.colorScheme.primary
@@ -205,7 +214,7 @@ fun WalletsScreen(
                         if (totalCreditLimit > 0.0) {
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "${Localization.t("credit_limit_label", lang)}: ${currency.symbol} ${String.format(Locale.US, "%,.2f", totalCreditLimit)}",
+                                text = "${Localization.t("credit_limit_label", lang)}: ${formatCurrency(totalCreditLimit, currency)}",
                                 style = MaterialTheme.typography.bodySmall.copy(
                                     fontWeight = FontWeight.Medium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -216,8 +225,58 @@ fun WalletsScreen(
                 }
             }
 
+            // Aviso sobre Instituciones Financieras deshabilitadas por Administración
+            val disabledInstitutions = allInstitutions.filter { !it.isActive }
+            if (disabledInstitutions.isNotEmpty()) {
+                item {
+                    Card(
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 2.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .padding(top = 2.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "Aviso a Usuarios: Entidades Deshabilitadas",
+                                    style = MaterialTheme.typography.titleSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "El Administrador ha desactivado temporalmente la vinculación de nuevas cuentas para:\n" +
+                                        disabledInstitutions.joinToString("\n") { "• ${it.fullName}: ${it.statusReason}" } +
+                                        "\n(Sus cuentas y billeteras previamente vinculadas continúan operando con normalidad).",
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        lineHeight = 18.sp
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             // Pestañas de filtrado de herramientas
             item {
+
                 TabRow(
                     selectedTabIndex = selectedTab,
                     containerColor = MaterialTheme.colorScheme.surface,
@@ -286,7 +345,8 @@ fun WalletsScreen(
                         account = item,
                         currencySymbol = currency.symbol,
                         lang = lang,
-                        onToggleActive = { accountToToggle = item }
+                        onToggleActive = { accountToToggle = item },
+                        onDeletePermanent = { accountToDeletePermanent = item }
                     )
                 }
             }
@@ -341,6 +401,23 @@ fun WalletsScreen(
             )
         }
 
+        // Diálogo de Confirmación para Eliminar Definitivamente una cuenta o billetera deshabilitada
+        accountToDeletePermanent?.let { acc ->
+            DeleteConfirmationDialog(
+                title = if (lang == AppLanguage.SPANISH) "Eliminar Cuenta Definitivamente" else "Permanently Delete Account",
+                message = if (lang == AppLanguage.SPANISH)
+                    "¿Estás seguro de eliminar permanentemente '${acc.bankName}' (${acc.accountNumber})? Esta acción afectará los datos de tu balance y registros financieros. ¿Deseas confirmar la eliminación?"
+                else
+                    "Are you sure you want to permanently delete '${acc.bankName}' (${acc.accountNumber})? This action will affect your balance and financial records. Do you wish to confirm?",
+                lang = lang,
+                onConfirm = {
+                    viewModel.deleteFinancialAccount(acc)
+                    accountToDeletePermanent = null
+                },
+                onDismiss = { accountToDeletePermanent = null }
+            )
+        }
+
         // Diálogo de Transferencia entre Cuentas y Billeteras
         if (showTransferDialog) {
             TransferFundsDialog(
@@ -365,6 +442,7 @@ fun FinancialAccountCard(
     currencySymbol: String,
     lang: com.example.util.AppLanguage,
     onToggleActive: () -> Unit,
+    onDeletePermanent: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val isWallet = account.toolType == "BILLETERA"
@@ -384,13 +462,10 @@ fun FinancialAccountCard(
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = cardBackground),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = if (isActive) 2.dp else 0.dp),
         modifier = modifier
             .fillMaxWidth()
-            .then(
-                if (!isActive) Modifier.border(1.dp, Color(0xFFCBD5E1), RoundedCornerShape(16.dp))
-                else Modifier
-            )
             .testTag("account_card_${account.id}")
     ) {
         Column(
@@ -413,10 +488,10 @@ fun FinancialAccountCard(
                             .size(44.dp)
                             .clip(CircleShape)
                             .background(
-                                if (!isActive) Color(0xFFE2E8F0)
-                                else if (isWallet) Color(0xFFE0F2FE)
-                                else if (isCredit) Color(0xFFFEF3C7)
-                                else FinanceSecondaryContainer
+                                if (!isActive) MaterialTheme.colorScheme.surfaceVariant
+                                else if (isWallet) MaterialTheme.colorScheme.secondaryContainer
+                                else if (isCredit) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+                                else MaterialTheme.colorScheme.primaryContainer
                             ),
                         contentAlignment = Alignment.Center
                     ) {
@@ -480,27 +555,48 @@ fun FinancialAccountCard(
                         )
                     }
                 } else {
-                    Button(
-                        onClick = onToggleActive,
-                        colors = ButtonDefaults.buttonColors(containerColor = FinanceSuccess),
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                        modifier = Modifier
-                            .height(34.dp)
-                            .testTag("reactivate_account_btn_${account.id}")
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = Localization.t("reactivate_btn", lang),
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = Color.White
-                        )
+                        Button(
+                            onClick = onToggleActive,
+                            colors = ButtonDefaults.buttonColors(containerColor = FinanceSuccess),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                            modifier = Modifier
+                                .height(34.dp)
+                                .testTag("reactivate_account_btn_${account.id}")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = Localization.t("reactivate_btn", lang),
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = Color.White
+                            )
+                        }
+
+                        IconButton(
+                            onClick = onDeletePermanent,
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(FinanceError.copy(alpha = 0.12f))
+                                .testTag("delete_permanent_account_btn_${account.id}")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = if (lang == AppLanguage.SPANISH) "Eliminar definitivamente" else "Permanently delete",
+                                tint = FinanceError,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -533,7 +629,7 @@ fun FinancialAccountCard(
                         style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                     )
                     Text(
-                        text = "$currencySymbol ${String.format(Locale.US, "%,.2f", account.balance)}",
+                        text = formatCurrency(account.balance),
                         style = MaterialTheme.typography.titleLarge.copy(
                             fontWeight = FontWeight.Bold,
                             color = if (!isActive) Color.Gray else if (account.balance >= 0) FinanceSuccess else FinanceError
@@ -548,18 +644,18 @@ fun FinancialAccountCard(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFFFEF3C7).copy(alpha = if (isActive) 0.8f else 0.4f), RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (isActive) 0.8f else 0.4f), RoundedCornerShape(8.dp))
                         .padding(horizontal = 10.dp, vertical = 6.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
                         text = "${Localization.t("credit_limit_label", lang)}:",
-                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold, color = Color(0xFF92400E))
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
                     )
                     Text(
-                        text = "$currencySymbol ${String.format(Locale.US, "%,.2f", account.creditLimit)}",
-                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold, color = Color(0xFF92400E))
+                        text = formatCurrency(account.creditLimit),
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     )
                 }
             }
@@ -570,7 +666,7 @@ fun FinancialAccountCard(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFFF1F5F9).copy(alpha = if (isActive) 1f else 0.5f), RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (isActive) 0.8f else 0.4f), RoundedCornerShape(8.dp))
                         .padding(horizontal = 10.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {

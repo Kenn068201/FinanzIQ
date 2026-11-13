@@ -58,9 +58,12 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.util.AppLanguage
 import com.example.data.local.BudgetEntity
+import com.example.data.local.CategoryEntity
 import com.example.data.model.CategoryDataHierarchy
 import com.example.data.model.CategoryGroupType
 import com.example.ui.FinanceViewModel
@@ -74,7 +77,10 @@ import com.example.ui.theme.FinancePrimary
 import com.example.ui.theme.FinanceSecondaryContainer
 import com.example.ui.theme.FinanceSuccess
 import com.example.ui.theme.FinanceWarning
+import com.example.util.Localization
 import java.util.Locale
+
+import com.example.ui.components.DeleteConfirmationDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,35 +88,48 @@ fun BudgetsScreen(
     viewModel: FinanceViewModel,
     modifier: Modifier = Modifier
 ) {
+    val lang by viewModel.currentLanguage.collectAsState()
+    val currency by viewModel.selectedCurrency.collectAsState()
     val budgets by viewModel.budgets.collectAsState()
     val transactions by viewModel.allTransactions.collectAsState()
+    val categories by viewModel.categories.collectAsState()
 
     var showAddDialog by remember { mutableStateOf(false) }
+    var budgetToEdit by remember { mutableStateOf<BudgetEntity?>(null) }
+    var budgetToDelete by remember { mutableStateOf<BudgetEntity?>(null) }
 
-    // Calculate spent per category this month
-    val expensesByCategory = transactions
-        .filter { it.type == "EXPENSE" }
-        .groupBy { it.category }
-        .mapValues { entry -> entry.value.sumOf { it.amount } }
+    // Cálculo dinámico y acumulativo del gasto para cada presupuesto según la categoría correspondiente
+    fun calculateSpentForCategory(budgetCategory: String): Double {
+        return transactions.filter { tx ->
+            tx.type == "EXPENSE" && viewModel.doesTransactionMatchBudget(tx.category, tx.subCategory, budgetCategory)
+        }.sumOf { it.amount }
+    }
 
     val totalBudgetLimit = budgets.sumOf { it.monthlyLimit }
-    val totalSpent = expensesByCategory.values.sum()
+    val totalSpent = budgets.sumOf { calculateSpentForCategory(it.category) }
     val totalProgress = if (totalBudgetLimit > 0) (totalSpent / totalBudgetLimit).toFloat().coerceIn(0f, 1.2f) else 0f
     val totalPercentage = if (totalBudgetLimit > 0) (totalSpent / totalBudgetLimit) * 100 else 0.0
+
+    // Detectar presupuestos que hayan alcanzado el 80% o superior para alertar al usuario
+    val budgetsWithWarnings = budgets.mapNotNull { b ->
+        val sp = calculateSpentForCategory(b.category)
+        val pct = if (b.monthlyLimit > 0) (sp / b.monthlyLimit) * 100 else 0.0
+        if (pct >= 80.0) Triple(b, sp, pct) else null
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Text(
-                        text = "Presupuestos Mensuales",
+                        text = if (lang == AppLanguage.SPANISH) "Presupuestos Mensuales" else "Monthly Budgets",
                         style = MaterialTheme.typography.titleLarge.copy(
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF0F172A)
+                            color = MaterialTheme.colorScheme.onBackground
                         )
                     )
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = FinanceBackground)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
             )
         },
         floatingActionButton = {
@@ -120,10 +139,13 @@ fun BudgetsScreen(
                 contentColor = FinanceOnPrimary,
                 modifier = Modifier.testTag("fab_add_budget")
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Crear Presupuesto")
+                Icon(
+                    Icons.Default.Add,
+                    contentDescription = if (lang == AppLanguage.SPANISH) "Crear Presupuesto" else "Create Budget"
+                )
             }
         },
-        containerColor = FinanceBackground,
+        containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier.fillMaxSize()
     ) { innerPadding ->
         LazyColumn(
@@ -137,7 +159,7 @@ fun BudgetsScreen(
             item {
                 Card(
                     shape = RoundedCornerShape(18.dp),
-                    colors = CardDefaults.cardColors(containerColor = FinanceSecondaryContainer.copy(alpha = 0.5f)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
@@ -150,18 +172,78 @@ fun BudgetsScreen(
                             )
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
-                                text = "Control de Límites Mensuales",
+                                text = if (lang == AppLanguage.SPANISH) "Control de Límites Mensuales" else "Monthly Limit Tracking",
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF004C73)
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
                                 )
                             )
                         }
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "Establece metas de gasto por categoría. Te avisaremos cuando alcances el 80% o sobrepases tu límite establecido.",
-                            style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF4B5563))
+                            text = if (lang == AppLanguage.SPANISH)
+                                "Establece metas de gasto por categoría. Te avisaremos cuando alcances el 80% o sobrepases tu límite establecido."
+                            else
+                                "Set spending targets by category. We'll notify you when you reach 80% or exceed your limit.",
+                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.85f))
                         )
+                    }
+                }
+            }
+
+            // Alerta destacada para presupuestos con 80% o superior
+            if (budgetsWithWarnings.isNotEmpty()) {
+                item {
+                    Card(
+                        shape = RoundedCornerShape(18.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF3C7)),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFDE68A)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("budget_warning_banner")
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Warning,
+                                    contentDescription = null,
+                                    tint = Color(0xFFD97706),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = if (lang == AppLanguage.SPANISH) "Alerta de Límite Presupuestario (80%+)" else "Budget Limit Alert (80%+)",
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF92400E)
+                                    )
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            budgetsWithWarnings.forEach { (b, sp, pct) ->
+                                val remaining = (b.monthlyLimit - sp).coerceAtLeast(0.0)
+                                // Traducción dinámica de la categoría en la alerta de presupuesto
+                                val catDisplay = CategoryDataHierarchy.getCategoryDisplayName(b.category, lang)
+                                Text(
+                                    text = if (pct >= 100.0) {
+                                        if (lang == AppLanguage.SPANISH)
+                                            "• $catDisplay: ¡Límite superado! Has consumido el ${String.format(Locale.US, "%.0f", pct)}% de tu presupuesto (${formatCordobas(sp)} / ${formatCordobas(b.monthlyLimit)})."
+                                        else
+                                            "• $catDisplay: Limit exceeded! You have spent ${String.format(Locale.US, "%.0f", pct)}% of your budget (${formatCordobas(sp)} / ${formatCordobas(b.monthlyLimit)})."
+                                    } else {
+                                        if (lang == AppLanguage.SPANISH)
+                                            "• $catDisplay: Estás cerca de sobrepasar tu límite establecido (${String.format(Locale.US, "%.0f", pct)}% consumido. Te quedan ${formatCordobas(remaining)})."
+                                        else
+                                            "• $catDisplay: Close to exceeding established limit (${String.format(Locale.US, "%.0f", pct)}% spent. ${formatCordobas(remaining)} left)."
+                                    },
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        color = Color(0xFF78350F),
+                                        fontWeight = FontWeight.SemiBold
+                                    ),
+                                    modifier = Modifier.padding(vertical = 2.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -179,8 +261,12 @@ fun BudgetsScreen(
 
                     Card(
                         shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = CardDefaults.outlinedCardBorder().copy(
+                            brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.outlineVariant),
+                            width = 1.dp
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(18.dp)) {
@@ -191,27 +277,27 @@ fun BudgetsScreen(
                             ) {
                                 Column {
                                     Text(
-                                        text = "Presupuesto General del Mes",
+                                        text = if (lang == AppLanguage.SPANISH) "Presupuesto General del Mes" else "Overall Monthly Budget",
                                         style = MaterialTheme.typography.titleMedium.copy(
                                             fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF0F172A)
+                                            color = MaterialTheme.colorScheme.onSurface
                                         )
                                     )
                                     Text(
-                                        text = "${budgets.size} categorías presupuestadas",
-                                        style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF64748B))
+                                        text = if (lang == AppLanguage.SPANISH) "${budgets.size} categorías presupuestadas" else "${budgets.size} budgeted categories",
+                                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     )
                                 }
 
                                 Surface(
                                     shape = RoundedCornerShape(12.dp),
-                                    color = globalColor.copy(alpha = 0.12f)
+                                    color = globalColor.copy(alpha = 0.15f)
                                 ) {
                                     Text(
                                         text = when {
-                                            isGlobalExceeded -> "⚠️ Superado"
-                                            isGlobalWarning -> "⚡ Alerta 80%"
-                                            else -> "✅ Saludable"
+                                            isGlobalExceeded -> if (lang == AppLanguage.SPANISH) "⚠️ Superado" else "⚠️ Exceeded"
+                                            isGlobalWarning -> if (lang == AppLanguage.SPANISH) "⚡ Alerta 80%" else "⚡ 80% Alert"
+                                            else -> if (lang == AppLanguage.SPANISH) "✅ Saludable" else "✅ Healthy"
                                         },
                                         style = MaterialTheme.typography.labelMedium.copy(
                                             color = globalColor,
@@ -228,7 +314,7 @@ fun BudgetsScreen(
                             LinearProgressIndicator(
                                 progress = { totalProgress.coerceAtMost(1f) },
                                 color = globalColor,
-                                trackColor = Color(0xFFE2E8F0),
+                                trackColor = MaterialTheme.colorScheme.surfaceVariant,
                                 strokeCap = StrokeCap.Round,
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -243,8 +329,8 @@ fun BudgetsScreen(
                             ) {
                                 Column {
                                     Text(
-                                        text = "Total Gastado",
-                                        style = MaterialTheme.typography.labelSmall.copy(color = Color(0xFF64748B))
+                                        text = if (lang == AppLanguage.SPANISH) "Total Gastado" else "Total Spent",
+                                        style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     )
                                     Text(
                                         text = formatCordobas(totalSpent),
@@ -256,14 +342,14 @@ fun BudgetsScreen(
                                 }
                                 Column(horizontalAlignment = Alignment.End) {
                                     Text(
-                                        text = "Límite Global",
-                                        style = MaterialTheme.typography.labelSmall.copy(color = Color(0xFF64748B))
+                                        text = if (lang == AppLanguage.SPANISH) "Límite Global" else "Global Limit",
+                                        style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     )
                                     Text(
                                         text = formatCordobas(totalBudgetLimit),
                                         style = MaterialTheme.typography.titleMedium.copy(
                                             fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF0F172A)
+                                            color = MaterialTheme.colorScheme.onSurface
                                         )
                                     )
                                 }
@@ -274,7 +360,7 @@ fun BudgetsScreen(
             }
 
             item {
-                SectionHeader(title = "Presupuestos por Categoría")
+                SectionHeader(title = if (lang == AppLanguage.SPANISH) "Presupuestos por Categoría" else "Budgets by Category")
             }
 
             if (budgets.isEmpty()) {
@@ -287,10 +373,10 @@ fun BudgetsScreen(
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                text = "No tienes presupuestos activos",
+                                text = if (lang == AppLanguage.SPANISH) "No tienes presupuestos activos" else "No active budgets",
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF6B7280)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             )
                             Spacer(modifier = Modifier.height(8.dp))
@@ -298,18 +384,21 @@ fun BudgetsScreen(
                                 onClick = { showAddDialog = true },
                                 colors = ButtonDefaults.buttonColors(containerColor = FinancePrimary)
                             ) {
-                                Text("Crear Primer Presupuesto")
+                                Text(if (lang == AppLanguage.SPANISH) "Crear Primer Presupuesto" else "Create First Budget")
                             }
                         }
                     }
                 }
             } else {
                 items(budgets) { budget ->
-                    val spent = expensesByCategory[budget.category] ?: 0.0
+                    val spent = calculateSpentForCategory(budget.category)
+                    // Tarjeta de progreso de presupuesto con opción de editar al tocar y confirmar al eliminar
                     BudgetProgressCard(
                         budget = budget,
                         spent = spent,
-                        onDelete = { viewModel.deleteBudget(budget) }
+                        lang = lang,
+                        onClick = { budgetToEdit = budget },
+                        onDelete = { budgetToDelete = budget }
                     )
                 }
             }
@@ -319,11 +408,45 @@ fun BudgetsScreen(
 
         if (showAddDialog) {
             AddBudgetDialog(
+                lang = lang,
+                currencySymbol = currency.symbol,
+                categories = categories,
                 onDismiss = { showAddDialog = false },
                 onConfirm = { cat, limit ->
                     viewModel.setBudget(cat, limit)
                     showAddDialog = false
                 }
+            )
+        }
+
+        // Diálogo para editar el límite de un presupuesto existente al tocarlo
+        budgetToEdit?.let { budget ->
+            EditBudgetDialog(
+                budget = budget,
+                currencySymbol = currency.symbol,
+                lang = lang,
+                onDismiss = { budgetToEdit = null },
+                onSave = { newLimit ->
+                    viewModel.setBudget(budget.category, newLimit)
+                    budgetToEdit = null
+                }
+            )
+        }
+
+        // Diálogo de Confirmación de Eliminación de Presupuesto
+        budgetToDelete?.let { budget ->
+            DeleteConfirmationDialog(
+                title = if (lang == AppLanguage.SPANISH) "Eliminar Presupuesto" else "Delete Budget",
+                message = if (lang == AppLanguage.SPANISH)
+                    "Esta acción eliminará el presupuesto asignado a la categoría '${CategoryDataHierarchy.getCategoryDisplayName(budget.category, lang)}'. ¿Deseas confirmar la eliminación?"
+                else
+                    "This action will delete the budget for category '${CategoryDataHierarchy.getCategoryDisplayName(budget.category, lang)}'. Do you wish to confirm?",
+                lang = lang,
+                onConfirm = {
+                    viewModel.deleteBudget(budget)
+                    budgetToDelete = null
+                },
+                onDismiss = { budgetToDelete = null }
             )
         }
     }
@@ -333,6 +456,8 @@ fun BudgetsScreen(
 fun BudgetProgressCard(
     budget: BudgetEntity,
     spent: Double,
+    lang: com.example.util.AppLanguage = com.example.util.AppLanguage.SPANISH,
+    onClick: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -355,10 +480,15 @@ fun BudgetProgressCard(
 
     Card(
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = CardDefaults.outlinedCardBorder().copy(
+            brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.outlineVariant),
+            width = 1.dp
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         modifier = modifier
             .fillMaxWidth()
+            .clickable { onClick() }
             .testTag("budget_card_${budget.category}")
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -380,21 +510,21 @@ fun BudgetProgressCard(
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text(
-                            text = budget.category,
+                            text = CategoryDataHierarchy.getCategoryDisplayName(budget.category, lang),
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF0F172A)
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         )
                         Text(
                             text = when {
-                                isExceeded -> "⚠️ Límite superado (${String.format(Locale.US, "%.0f", percentage)}%)"
-                                isWarning -> "⚡ Cerca del límite (${String.format(Locale.US, "%.0f", percentage)}%)"
-                                else -> "En rango saludable (${String.format(Locale.US, "%.0f", percentage)}%)"
+                                isExceeded -> if (lang == AppLanguage.SPANISH) "⚠️ ¡Límite superado! (${String.format(Locale.US, "%.0f", percentage)}%)" else "⚠️ Limit exceeded! (${String.format(Locale.US, "%.0f", percentage)}%)"
+                                isWarning -> if (lang == AppLanguage.SPANISH) "⚡ Cerca del límite (${String.format(Locale.US, "%.0f", percentage)}%)" else "⚡ Close to limit (${String.format(Locale.US, "%.0f", percentage)}%)"
+                                else -> if (lang == AppLanguage.SPANISH) "En rango saludable (${String.format(Locale.US, "%.0f", percentage)}%)" else "Healthy range (${String.format(Locale.US, "%.0f", percentage)}%)"
                             },
                             style = MaterialTheme.typography.bodySmall.copy(
                                 color = progressColor,
-                                fontWeight = FontWeight.SemiBold
+                                fontWeight = FontWeight.Bold
                             )
                         )
                     }
@@ -403,8 +533,8 @@ fun BudgetProgressCard(
                 IconButton(onClick = onDelete) {
                     Icon(
                         imageVector = Icons.Default.Delete,
-                        contentDescription = "Eliminar presupuesto",
-                        tint = Color(0xFF94A3B8),
+                        contentDescription = if (lang == AppLanguage.SPANISH) "Eliminar presupuesto" else "Delete budget",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -416,7 +546,7 @@ fun BudgetProgressCard(
             LinearProgressIndicator(
                 progress = { progress.coerceAtMost(1f) },
                 color = progressColor,
-                trackColor = Color(0xFFE2E8F0),
+                trackColor = MaterialTheme.colorScheme.surfaceVariant,
                 strokeCap = StrokeCap.Round,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -430,17 +560,43 @@ fun BudgetProgressCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = "Gastado: ${formatCordobas(spent)}",
+                    text = "${if (lang == AppLanguage.SPANISH) "Gastado" else "Spent"}: ${formatCordobas(spent)}",
                     style = MaterialTheme.typography.bodyMedium.copy(
-                        color = Color(0xFF475569),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.Medium
                     )
                 )
                 Text(
-                    text = "Límite: ${formatCordobas(budget.monthlyLimit)}",
+                    text = "${if (lang == AppLanguage.SPANISH) "Límite" else "Limit"}: ${formatCordobas(budget.monthlyLimit)}",
                     style = MaterialTheme.typography.bodyMedium.copy(
-                        color = Color(0xFF0F172A),
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Bold
+                    )
+                )
+            }
+
+            if (isWarning) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = if (lang == AppLanguage.SPANISH)
+                        "⚡ Alerta: Has consumido el ${String.format(Locale.US, "%.0f", percentage)}% de este presupuesto (Restante: ${formatCordobas((budget.monthlyLimit - spent).coerceAtLeast(0.0))})."
+                    else
+                        "⚡ Alert: You have spent ${String.format(Locale.US, "%.0f", percentage)}% of this budget (${formatCordobas((budget.monthlyLimit - spent).coerceAtLeast(0.0))} remaining).",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = Color(0xFFB45309),
+                        fontWeight = FontWeight.SemiBold
+                    )
+                )
+            } else if (isExceeded) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = if (lang == AppLanguage.SPANISH)
+                        "⚠️ Alerta: Has sobrepasado tu límite establecido en esta categoría por ${formatCordobas(spent - budget.monthlyLimit)}."
+                    else
+                        "⚠️ Alert: You have exceeded your budget limit for this category by ${formatCordobas(spent - budget.monthlyLimit)}.",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = FinanceError,
+                        fontWeight = FontWeight.SemiBold
                     )
                 )
             }
@@ -450,18 +606,20 @@ fun BudgetProgressCard(
 
 @Composable
 fun AddBudgetDialog(
+    lang: com.example.util.AppLanguage,
+    currencySymbol: String = "C$",
+    categories: List<CategoryEntity> = emptyList(),
     onDismiss: () -> Unit,
     onConfirm: (category: String, limit: Double) -> Unit
 ) {
     var selectedGroupType by remember { mutableStateOf(CategoryGroupType.FIXED_EXPENSE) }
-    val currentGroupCategories = when (selectedGroupType) {
-        CategoryGroupType.FIXED_EXPENSE -> CategoryDataHierarchy.fixedExpenseGroup.categories
-        CategoryGroupType.VARIABLE_EXPENSE -> CategoryDataHierarchy.variableExpenseGroup.categories
-        CategoryGroupType.DEBT_PAYMENT -> CategoryDataHierarchy.debtPaymentGroup.categories
-        else -> CategoryDataHierarchy.fixedExpenseGroup.categories
+    val currentGroupCategories = remember(selectedGroupType, categories) {
+        CategoryDataHierarchy.getCategoriesForGroup(selectedGroupType, categories)
     }
 
-    var selectedCategory by remember { mutableStateOf(currentGroupCategories.first().nameEs) }
+    var selectedCategory by remember(currentGroupCategories) {
+        mutableStateOf(currentGroupCategories.firstOrNull()?.nameEs ?: "")
+    }
     var limitStr by remember { mutableStateOf("") }
     var errorMsg by remember { mutableStateOf<String?>(null) }
 
@@ -469,7 +627,7 @@ fun AddBudgetDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                text = "Crear Presupuesto Mensual",
+                text = if (lang == AppLanguage.SPANISH) "Crear Presupuesto Mensual" else "Create Monthly Budget",
                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
             )
         },
@@ -478,50 +636,78 @@ fun AddBudgetDialog(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                if (errorMsg != null) {
-                    ErrorWarningBox(message = errorMsg!!)
+                errorMsg?.let { msg ->
+                    ErrorWarningBox(message = msg)
                 }
 
                 Text(
-                    text = "Grupo de Gasto:",
+                    text = if (lang == AppLanguage.SPANISH) "Grupo de Gasto:" else "Expense Group:",
                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
                 )
 
-                Row(
+                // Grupo de tipo de gasto en LazyRow deslizable horizontal
+                LazyRow(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    FilterChip(
-                        selected = selectedGroupType == CategoryGroupType.FIXED_EXPENSE,
-                        onClick = {
-                            selectedGroupType = CategoryGroupType.FIXED_EXPENSE
-                            selectedCategory = CategoryDataHierarchy.fixedExpenseGroup.categories.first().nameEs
-                        },
-                        label = { Text("🔒 Fijos") },
-                        modifier = Modifier.weight(1f)
-                    )
-                    FilterChip(
-                        selected = selectedGroupType == CategoryGroupType.VARIABLE_EXPENSE,
-                        onClick = {
-                            selectedGroupType = CategoryGroupType.VARIABLE_EXPENSE
-                            selectedCategory = CategoryDataHierarchy.variableExpenseGroup.categories.first().nameEs
-                        },
-                        label = { Text("🎯 Deseos") },
-                        modifier = Modifier.weight(1f)
-                    )
-                    FilterChip(
-                        selected = selectedGroupType == CategoryGroupType.DEBT_PAYMENT,
-                        onClick = {
-                            selectedGroupType = CategoryGroupType.DEBT_PAYMENT
-                            selectedCategory = CategoryDataHierarchy.debtPaymentGroup.categories.first().nameEs
-                        },
-                        label = { Text("💳 Deudas") },
-                        modifier = Modifier.weight(1f)
-                    )
+                    item {
+                        FilterChip(
+                            selected = selectedGroupType == CategoryGroupType.FIXED_EXPENSE,
+                            onClick = {
+                                selectedGroupType = CategoryGroupType.FIXED_EXPENSE
+                                val newCats = CategoryDataHierarchy.getCategoriesForGroup(CategoryGroupType.FIXED_EXPENSE, categories)
+                                selectedCategory = newCats.firstOrNull()?.nameEs ?: ""
+                            },
+                            label = {
+                                Text(
+                                    text = if (lang == AppLanguage.SPANISH) "🔒 Fijos" else "🔒 Fixed",
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    letterSpacing = (-0.2).sp
+                                )
+                            }
+                        )
+                    }
+                    item {
+                        FilterChip(
+                            selected = selectedGroupType == CategoryGroupType.VARIABLE_EXPENSE,
+                            onClick = {
+                                selectedGroupType = CategoryGroupType.VARIABLE_EXPENSE
+                                val newCats = CategoryDataHierarchy.getCategoriesForGroup(CategoryGroupType.VARIABLE_EXPENSE, categories)
+                                selectedCategory = newCats.firstOrNull()?.nameEs ?: ""
+                            },
+                            label = {
+                                Text(
+                                    text = if (lang == AppLanguage.SPANISH) "🎯 Deseos" else "🎯 Wants",
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    letterSpacing = (-0.2).sp
+                                )
+                            }
+                        )
+                    }
+                    item {
+                        FilterChip(
+                            selected = selectedGroupType == CategoryGroupType.DEBT_PAYMENT,
+                            onClick = {
+                                selectedGroupType = CategoryGroupType.DEBT_PAYMENT
+                                val newCats = CategoryDataHierarchy.getCategoriesForGroup(CategoryGroupType.DEBT_PAYMENT, categories)
+                                selectedCategory = newCats.firstOrNull()?.nameEs ?: ""
+                            },
+                            label = {
+                                Text(
+                                    text = if (lang == AppLanguage.SPANISH) "💳 Deudas" else "💳 Debt",
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    letterSpacing = (-0.2).sp
+                                )
+                            }
+                        )
+                    }
                 }
 
                 Text(
-                    text = "Selecciona la categoría:",
+                    text = if (lang == AppLanguage.SPANISH) "Selecciona la categoría:" else "Select category:",
                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
                 )
 
@@ -530,7 +716,8 @@ fun AddBudgetDialog(
                         FilterChip(
                             selected = selectedCategory == cat.nameEs,
                             onClick = { selectedCategory = cat.nameEs },
-                            label = { Text("${cat.iconEmoji} ${cat.nameEs}") }
+                            // Traducción dinámica del nombre de la categoría en el selector
+                            label = { Text("${cat.iconEmoji} ${if (lang == com.example.util.AppLanguage.ENGLISH) cat.nameEn else cat.nameEs}") }
                         )
                     }
                 }
@@ -541,8 +728,8 @@ fun AddBudgetDialog(
                         limitStr = it.filter { c -> c.isDigit() || c == '.' }
                         errorMsg = null
                     },
-                    label = { Text("Límite Mensual en C$") },
-                    placeholder = { Text("ej. 5000.00") },
+                    label = { Text("${if (lang == AppLanguage.SPANISH) "Límite Mensual en" else "Monthly Limit in"} $currencySymbol") },
+                    placeholder = { Text("5000.00") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     shape = RoundedCornerShape(12.dp),
@@ -557,7 +744,7 @@ fun AddBudgetDialog(
                 onClick = {
                     val limit = limitStr.toDoubleOrNull()
                     if (limit == null || limit <= 0.0) {
-                        errorMsg = "Por favor ingresa un límite válido mayor a 0."
+                        errorMsg = Localization.t("error_budget_limit_invalid", lang)
                         return@Button
                     }
                     onConfirm(selectedCategory, limit)
@@ -565,15 +752,97 @@ fun AddBudgetDialog(
                 colors = ButtonDefaults.buttonColors(containerColor = FinancePrimary),
                 modifier = Modifier.testTag("confirm_add_budget_button")
             ) {
-                Text("Establecer Presupuesto", fontWeight = FontWeight.Bold)
+                Text(if (lang == AppLanguage.SPANISH) "Establecer Presupuesto" else "Set Budget", fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancelar")
+                Text(if (lang == AppLanguage.SPANISH) "Cancelar" else "Cancel")
             }
         },
         shape = RoundedCornerShape(18.dp),
-        containerColor = Color.White
+        containerColor = MaterialTheme.colorScheme.surface
+    )
+}
+
+/**
+ * Diálogo para editar el límite mensual de un presupuesto seleccionado por el usuario.
+ */
+@Composable
+fun EditBudgetDialog(
+    budget: BudgetEntity,
+    currencySymbol: String = "C$",
+    lang: com.example.util.AppLanguage,
+    onDismiss: () -> Unit,
+    onSave: (Double) -> Unit
+) {
+    var limitStr by remember { mutableStateOf(budget.monthlyLimit.toString()) }
+    var errorMsg by remember { mutableStateOf<String?>(null) }
+    val catDisplay = CategoryDataHierarchy.getCategoryDisplayName(budget.category, lang)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = if (lang == AppLanguage.SPANISH) "Editar Límite de Presupuesto" else "Edit Budget Limit",
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "${if (lang == AppLanguage.SPANISH) "Categoría" else "Category"}: $catDisplay",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                )
+
+                errorMsg?.let { msg ->
+                    ErrorWarningBox(message = msg)
+                }
+
+                OutlinedTextField(
+                    value = limitStr,
+                    onValueChange = {
+                        limitStr = it.filter { c -> c.isDigit() || c == '.' }
+                        errorMsg = null
+                    },
+                    label = { Text("${if (lang == AppLanguage.SPANISH) "Nuevo Límite Mensual en" else "New Monthly Limit in"} $currencySymbol") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("edit_budget_limit_input")
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val limit = limitStr.toDoubleOrNull()
+                    if (limit == null || limit <= 0.0) {
+                        errorMsg = Localization.t("error_budget_limit_invalid", lang)
+                        return@Button
+                    }
+                    onSave(limit)
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = FinancePrimary),
+                modifier = Modifier.testTag("save_edit_budget_button")
+            ) {
+                Text(if (lang == AppLanguage.SPANISH) "Guardar Límite" else "Save Limit", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(if (lang == AppLanguage.SPANISH) "Cancelar" else "Cancel")
+            }
+        },
+        shape = RoundedCornerShape(18.dp),
+        containerColor = MaterialTheme.colorScheme.surface
     )
 }

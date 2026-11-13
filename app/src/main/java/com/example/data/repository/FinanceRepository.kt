@@ -1,11 +1,16 @@
 package com.example.data.repository
 
+import com.example.data.local.ApiMetricEntity
 import com.example.data.local.AppDatabase
+import com.example.data.local.AppVersionEntity
+import com.example.data.local.AuditLogEntity
 import com.example.data.local.BillReminderEntity
 import com.example.data.local.BudgetEntity
 import com.example.data.local.CategoryEntity
 import com.example.data.local.FinancialAccountEntity
+import com.example.data.local.FinancialInstitutionEntity
 import com.example.data.local.SavingsGoalEntity
+import com.example.data.local.SecurityPolicyEntity
 import com.example.data.local.TransactionEntity
 import com.example.data.local.UserEntity
 import com.example.data.remote.GeminiApiClient
@@ -40,6 +45,12 @@ class FinanceRepository(private val db: AppDatabase) {
     private val billDao = db.billReminderDao()
     private val categoryDao = db.categoryDao()
     private val accountDao = db.financialAccountDao()
+    private val institutionDao = db.financialInstitutionDao()
+    private val policyDao = db.securityPolicyDao()
+    private val auditDao = db.auditLogDao()
+    private val versionDao = db.appVersionDao()
+    private val apiMetricDao = db.apiMetricDao()
+
 
     // --- Herramientas Financieras (Cuentas y Billeteras) ---
     fun getFinancialAccounts(userId: Long): Flow<List<FinancialAccountEntity>> =
@@ -104,6 +115,8 @@ class FinanceRepository(private val db: AppDatabase) {
 
     // --- Autenticacion y Usuarios ---
     suspend fun getUserByEmail(email: String): UserEntity? = userDao.getUserByEmail(email.trim().lowercase(Locale.ROOT))
+    suspend fun getUserByUsername(username: String): UserEntity? = userDao.getUserByUsername(username.trim().lowercase(Locale.ROOT))
+    suspend fun getUserByIdentifier(identifier: String): UserEntity? = userDao.getUserByIdentifier(identifier.trim().lowercase(Locale.ROOT))
     suspend fun getUserByPhone(phone: String): UserEntity? = userDao.getUserByPhone(phone.trim())
     suspend fun getUserById(id: Long): UserEntity? = userDao.getUserById(id)
     fun getAllUsers(): Flow<List<UserEntity>> = userDao.getAllUsers()
@@ -111,6 +124,36 @@ class FinanceRepository(private val db: AppDatabase) {
     suspend fun updateUser(user: UserEntity) = userDao.updateUser(user)
     suspend fun deleteUser(user: UserEntity) = userDao.deleteUser(user)
     suspend fun getUserCount(): Int = userDao.getUserCount()
+
+    // --- Catálogo de Instituciones Financieras (Bancos y Billeteras) ---
+    fun getAllFinancialInstitutions(): Flow<List<FinancialInstitutionEntity>> =
+        institutionDao.getAllInstitutions()
+
+    fun getActiveFinancialInstitutions(): Flow<List<FinancialInstitutionEntity>> =
+        institutionDao.getActiveInstitutions()
+
+    suspend fun getInstitutionById(id: Long): FinancialInstitutionEntity? =
+        institutionDao.getInstitutionById(id)
+
+    suspend fun insertInstitution(institution: FinancialInstitutionEntity): Long =
+        institutionDao.insertInstitution(institution)
+
+    suspend fun updateInstitution(institution: FinancialInstitutionEntity) =
+        institutionDao.updateInstitution(institution)
+
+    suspend fun deleteInstitution(institution: FinancialInstitutionEntity) =
+        institutionDao.deleteInstitution(institution)
+
+    // --- Directivas de Seguridad Globales ---
+    fun getSecurityPolicy(): Flow<SecurityPolicyEntity?> =
+        policyDao.getSecurityPolicy()
+
+    suspend fun getSecurityPolicyDirect(): SecurityPolicyEntity? =
+        policyDao.getSecurityPolicyDirect()
+
+    suspend fun saveSecurityPolicy(policy: SecurityPolicyEntity) =
+        policyDao.insertOrUpdatePolicy(policy)
+
 
     // --- Transacciones ---
     fun getTransactionsByUser(userId: Long): Flow<List<TransactionEntity>> =
@@ -130,6 +173,9 @@ class FinanceRepository(private val db: AppDatabase) {
 
     suspend fun deleteTransaction(id: Long) =
         transactionDao.deleteById(id)
+
+    suspend fun getTransactionById(id: Long): TransactionEntity? =
+        transactionDao.getTransactionById(id)
 
     // Herramienta de clasificación automática basada en el título o las palabras clave
     fun autoClassifyCategory(title: String, type: String): String {
@@ -210,6 +256,48 @@ class FinanceRepository(private val db: AppDatabase) {
 
     suspend fun getCategoryCount(): Int = categoryDao.getCategoryCount()
 
+    // Coincidencia inteligente entre la categoría y subcategoría del gasto y el presupuesto establecido
+    fun doesTransactionMatchBudget(txCategory: String, txSubCategory: String, budgetCategory: String): Boolean {
+        val cleanTx = txCategory.trim().lowercase(Locale.ROOT)
+        val cleanSub = txSubCategory.trim().lowercase(Locale.ROOT)
+        val cleanBudget = budgetCategory.trim().lowercase(Locale.ROOT)
+
+        if (cleanTx == cleanBudget) return true
+        if (cleanSub.isNotEmpty() && cleanSub == cleanBudget) return true
+
+        val isFood = (cleanTx.contains("alimenta") || cleanTx.contains("comida") || cleanTx.contains("supermercado")) &&
+                     (cleanBudget.contains("alimenta") || cleanBudget.contains("comida"))
+        if (isFood) return true
+
+        val isTransport = (cleanTx.contains("transporte") || cleanTx.contains("gasolina") || cleanTx.contains("auto")) &&
+                          (cleanBudget.contains("transporte") || cleanBudget.contains("gasolina") || cleanBudget.contains("auto"))
+        if (isTransport) return true
+
+        val isUtilities = (cleanTx.contains("servicio") || cleanTx.contains("agua") || cleanTx.contains("luz") || cleanTx.contains("internet")) &&
+                          (cleanBudget.contains("servicio") || cleanBudget.contains("agua") || cleanBudget.contains("luz") || cleanBudget.contains("internet") || cleanBudget.contains("público"))
+        if (isUtilities) return true
+
+        val isHousing = (cleanTx.contains("vivienda") || cleanTx.contains("hogar") || cleanTx.contains("alquiler") || cleanTx.contains("casa")) &&
+                        (cleanBudget.contains("vivienda") || cleanBudget.contains("hogar") || cleanBudget.contains("alquiler") || cleanBudget.contains("casa"))
+        if (isHousing) return true
+
+        val isEntertainment = (cleanTx.contains("entretenimiento") || cleanTx.contains("ocio") || cleanTx.contains("cine") || cleanTx.contains("juego")) &&
+                              (cleanBudget.contains("entretenimiento") || cleanBudget.contains("ocio"))
+        if (isEntertainment) return true
+
+        val isHealth = cleanTx.contains("salud") && cleanBudget.contains("salud")
+        if (isHealth) return true
+
+        val isEducation = cleanTx.contains("educa") && cleanBudget.contains("educa")
+        if (isEducation) return true
+
+        val isDebt = (cleanTx.contains("deuda") || cleanTx.contains("crédito") || cleanTx.contains("prestamo") || cleanTx.contains("préstamo")) &&
+                     (cleanBudget.contains("deuda") || cleanBudget.contains("crédito") || cleanBudget.contains("prestamo") || cleanBudget.contains("préstamo"))
+        if (isDebt) return true
+
+        return cleanTx.contains(cleanBudget) || cleanBudget.contains(cleanTx)
+    }
+
     // --- Análisis y cálculos inteligentes---
     fun calculateSummary(
         transactions: List<TransactionEntity>,
@@ -250,15 +338,18 @@ class FinanceRepository(private val db: AppDatabase) {
             (currentMonthExpense / dayOfMonth) * daysInMonth
         } else currentMonthExpense
 
-        //Alertas presupuestarias y avisos 
+        // Alertas presupuestarias y avisos cuando el gasto es >= 80% o superior
         val alerts = mutableListOf<String>()
         for (b in budgets) {
-            val spent = expensesByCategory[b.category] ?: 0.0
-            val pct = (spent / b.monthlyLimit) * 100
+            val spent = transactions.filter { tx ->
+                tx.type == "EXPENSE" && doesTransactionMatchBudget(tx.category, tx.subCategory, b.category)
+            }.sumOf { it.amount }
+
+            val pct = if (b.monthlyLimit > 0) (spent / b.monthlyLimit) * 100 else 0.0
             if (pct >= 100) {
                 alerts.add("⚠️ Has superado el 100% de tu presupuesto en '${b.category}' (Gastado: C$${String.format(Locale.US, "%.2f", spent)} / Límite: C$${String.format(Locale.US, "%.2f", b.monthlyLimit)})")
             } else if (pct >= 80) {
-                alerts.add("⚡ Estás cerca del límite (${String.format(Locale.US, "%.0f", pct)}%) en '${b.category}'. Te quedan C$${String.format(Locale.US, "%.2f", b.monthlyLimit - spent)}")
+                alerts.add("⚡ Estás cerca del límite (${String.format(Locale.US, "%.0f", pct)}%) en '${b.category}'. Te quedan C$${String.format(Locale.US, "%.2f", (b.monthlyLimit - spent).coerceAtLeast(0.0))}")
             }
         }
 
@@ -345,8 +436,8 @@ class FinanceRepository(private val db: AppDatabase) {
                 append("Current Net Balance: $currencySymbol ${String.format(Locale.US, "%.2f", summary.balance)}\n")
                 append("Projected Month-End Expenses: $currencySymbol ${String.format(Locale.US, "%.2f", summary.projectedMonthEndExpense)}\n")
                 append("Recent Transactions:\n")
-                txs.take(8).forEach {
-                    append("- ${it.type}: ${it.title} | ${it.category} | $currencySymbol ${it.amount}\n")
+                txs.take(8).forEach { txItem ->
+                    append("- ${txItem.type}: ${txItem.title} | ${txItem.category} | $currencySymbol ${txItem.amount}\n")
                 }
             } else {
                 append("Usuario: ${user?.firstName ?: "Cliente"} ${user?.lastName ?: ""}\n")
@@ -355,8 +446,8 @@ class FinanceRepository(private val db: AppDatabase) {
                 append("Balance Actual: $currencySymbol ${String.format(Locale.US, "%.2f", summary.balance)}\n")
                 append("Proyección de gastos a fin de mes: $currencySymbol ${String.format(Locale.US, "%.2f", summary.projectedMonthEndExpense)}\n")
                 append("Transacciones Recientes:\n")
-                txs.take(8).forEach {
-                    append("- ${it.type}: ${it.title} | ${it.category} | $currencySymbol ${it.amount}\n")
+                txs.take(8).forEach { txItem ->
+                    append("- ${txItem.type}: ${txItem.title} | ${txItem.category} | $currencySymbol ${txItem.amount}\n")
                 }
             }
         }
@@ -395,4 +486,88 @@ class FinanceRepository(private val db: AppDatabase) {
             append("Fin del reporte generado con Finanzas Inteligentes.\n")
         }
     }
+
+    // --- Bitácora de Auditoría del Sistema ---
+    fun getAllAuditLogs(): Flow<List<AuditLogEntity>> = auditDao.getAllLogs()
+
+    suspend fun logAuditEvent(
+        eventType: String,
+        severity: String = "INFO",
+        username: String = "Sistema",
+        description: String,
+        ipAddress: String,
+        details: String = "",
+        userId: Long? = null
+    ): Long {
+        return auditDao.insertLog(
+            AuditLogEntity(
+                eventType = eventType,
+                severity = severity,
+                userId = userId,
+                username = username,
+                description = description,
+                ipAddress = ipAddress,
+                timestamp = System.currentTimeMillis(),
+                details = details
+            )
+        )
+    }
+
+    suspend fun clearAuditLogs() = auditDao.clearLogs()
+
+    // --- Control de Versiones de la Aplicación ---
+    fun getAllAppVersions(): Flow<List<AppVersionEntity>> = versionDao.getAllVersions()
+
+    fun getLatestVersionFlow(): Flow<AppVersionEntity?> = versionDao.getLatestVersionFlow()
+
+    suspend fun getLatestAppVersion(): AppVersionEntity? = versionDao.getLatestVersion()
+
+    suspend fun publishAppVersion(
+        versionNumber: String,
+        releaseNotes: String,
+        isMandatory: Boolean,
+        publishedBy: String = "Admin"
+    ): Long {
+        return versionDao.insertVersion(
+            AppVersionEntity(
+                versionNumber = versionNumber.trim(),
+                releaseNotes = releaseNotes.trim(),
+                isMandatory = isMandatory,
+                publishedBy = publishedBy.trim(),
+                releaseDate = System.currentTimeMillis()
+            )
+        )
+    }
+
+    // --- Monitor de APIs Integradas ---
+    fun getRecentApiMetrics(): Flow<List<ApiMetricEntity>> = apiMetricDao.getRecentMetrics()
+
+    suspend fun getApiMetricsSince(sinceTimestamp: Long): List<ApiMetricEntity> =
+        apiMetricDao.getMetricsSince(sinceTimestamp)
+
+    suspend fun logApiMetric(
+        apiName: String,
+        endpoint: String,
+        latencyMs: Long,
+        isSuccess: Boolean,
+        statusCode: Int = 200,
+        errorMessage: String = ""
+    ): Long {
+        return apiMetricDao.insertMetric(
+            ApiMetricEntity(
+                apiName = apiName,
+                endpoint = endpoint,
+                latencyMs = latencyMs,
+                isSuccess = isSuccess,
+                statusCode = statusCode,
+                errorMessage = errorMessage,
+                timestamp = System.currentTimeMillis()
+            )
+        )
+    }
+
+    suspend fun logApiMetric(metric: ApiMetricEntity): Long {
+        return apiMetricDao.insertMetric(metric)
+    }
 }
+

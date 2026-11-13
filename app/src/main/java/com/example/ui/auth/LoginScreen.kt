@@ -8,14 +8,17 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -100,6 +103,7 @@ fun LoginScreen(
     var showForgotPasswordDialog by remember { mutableStateOf(false) }
 
     val authError by viewModel.authError.collectAsState()
+    val isLoggingIn by viewModel.isLoggingIn.collectAsState()
     val lockoutRemainingSeconds by viewModel.lockoutRemainingSeconds.collectAsState()
     val failedAttempts by viewModel.failedLoginAttempts.collectAsState()
     val isDarkMode by viewModel.isDarkMode.collectAsState()
@@ -117,6 +121,7 @@ fun LoginScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .systemBarsPadding()
                 .verticalScroll(scrollState)
                 .padding(horizontal = 24.dp, vertical = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -419,7 +424,7 @@ fun LoginScreen(
                         ),
                         keyboardActions = KeyboardActions(
                             onDone = {
-                                if (!isLockedOut) {
+                                if (!isLockedOut && !isLoggingIn) {
                                     val success = viewModel.login(identifier, password)
                                     if (success) onLoginSuccess()
                                 }
@@ -460,12 +465,12 @@ fun LoginScreen(
                     // Botón principal de Iniciar Sesión
                     Button(
                         onClick = {
-                            if (!isLockedOut) {
+                            if (!isLockedOut && !isLoggingIn) {
                                 val ok = viewModel.login(identifier, password)
                                 if (ok) onLoginSuccess()
                             }
                         },
-                        enabled = !isLockedOut,
+                        enabled = !isLockedOut && !isLoggingIn,
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = FinancePrimary,
@@ -514,24 +519,28 @@ fun LoginScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
+                        // Acceso rápido de prueba para Elena sin recortes de texto y protegido contra toques dobles
                         OutlinedButton(
                             onClick = {
-                                if (!isLockedOut) {
+                                if (!isLockedOut && !isLoggingIn) {
                                     identifier = "elena@finanzas.com"
                                     password = "Elena2026!"
                                     viewModel.login(identifier, password)
                                     onLoginSuccess()
                                 }
                             },
-                            enabled = !isLockedOut,
+                            enabled = !isLockedOut && !isLoggingIn,
                             shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
                             modifier = Modifier
                                 .weight(1f)
-                                .height(44.dp)
+                                .heightIn(min = 48.dp)
                                 .testTag("demo_user_button")
                         ) {
                             Text(
                                 text = Localization.t("demo_user_btn", currentLang),
+                                maxLines = 1,
+                                softWrap = false,
                                 style = MaterialTheme.typography.labelMedium.copy(
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface
@@ -539,24 +548,28 @@ fun LoginScreen(
                             )
                         }
 
+                        // Acceso rápido de prueba para Carlos (Admin) con área táctil mínima accesible
                         OutlinedButton(
                             onClick = {
-                                if (!isLockedOut) {
+                                if (!isLockedOut && !isLoggingIn) {
                                     identifier = "admin@finanzas.com"
                                     password = "Admin123!"
                                     viewModel.login(identifier, password)
                                     onLoginSuccess()
                                 }
                             },
-                            enabled = !isLockedOut,
+                            enabled = !isLockedOut && !isLoggingIn,
                             shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
                             modifier = Modifier
                                 .weight(1f)
-                                .height(44.dp)
+                                .heightIn(min = 48.dp)
                                 .testTag("demo_admin_button")
                         ) {
                             Text(
                                 text = Localization.t("demo_admin_btn", currentLang),
+                                maxLines = 1,
+                                softWrap = false,
                                 style = MaterialTheme.typography.labelMedium.copy(
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface
@@ -650,11 +663,11 @@ fun ForgotPasswordDialog(
                     style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                 )
 
-                if (dialogError != null) {
-                    ErrorWarningBox(message = dialogError!!)
+                dialogError?.let { err ->
+                    ErrorWarningBox(message = err)
                 }
 
-                if (successNotice != null) {
+                successNotice?.let { notice ->
                     Card(
                         colors = CardDefaults.cardColors(containerColor = FinanceSuccessContainer),
                         shape = RoundedCornerShape(10.dp),
@@ -672,7 +685,7 @@ fun ForgotPasswordDialog(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = successNotice!!,
+                                text = notice,
                                 style = MaterialTheme.typography.bodySmall.copy(
                                     color = Color(0xFF065F46),
                                     fontWeight = FontWeight.SemiBold
